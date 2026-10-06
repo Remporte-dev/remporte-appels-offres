@@ -1,6 +1,6 @@
 [project]
 name = "remporte"
-version = "0.3.0"
+version = "0.4.0"
 description = "Répondre à un appel d'offres avec votre agent IA : lecture du DCE, analyse, plan, rédaction, relecture, export."
 readme = "README.md"
 license = "MIT"

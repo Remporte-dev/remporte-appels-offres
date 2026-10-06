@@ -18,11 +18,13 @@ Si `remporte --version` ne répond pas, propose d'abord `/remporte:init`.
 Chemin donné en argument : $ARGUMENTS
 
 S'il est vide, demande où se trouve le DCE téléchargé (le zip de la
-plateforme ou le dossier décompressé). Demande aussi où ranger la réponse :
-par défaut, un dossier `<nom>-reponse` dans le répertoire courant.
+plateforme ou le dossier décompressé).
 
-Lance `remporte init "<DCE>"` (avec `--dossier "<chemin>"` si l'utilisateur
-a choisi un autre emplacement). Toutes les commandes suivantes prennent
+Travaille depuis l'espace de travail de l'entreprise (le dossier qui contient
+`ressources/` et `DCEs/`) : `remporte init "<DCE>"` y crée
+`DCEs/<nom du DCE>/`. Si aucun espace n'existe, propose `/remporte:init`.
+
+Toutes les commandes suivantes prennent
 `--dossier "<chemin du dossier de réponse>"` si tu n'es pas lancé dedans.
 
 ## 2. Premier état du dossier

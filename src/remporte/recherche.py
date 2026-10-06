@@ -12,7 +12,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from remporte import lecture
+from remporte import lecture, travail
 
 _TAILLE_PASSAGE = 1200
 
@@ -23,8 +23,14 @@ _SCHEMA = (
 
 
 def chemin_base() -> Path:
-    """Dossier de la base entreprise : ~/.remporte/base/ ou REMPORTE_BASE."""
-    return Path(os.environ.get("REMPORTE_BASE") or Path.home() / ".remporte" / "base")
+    """Index de la base entreprise : REMPORTE_BASE, sinon `ressources/.index/`
+    de l'espace de travail courant, sinon ~/.remporte/base/."""
+    if os.environ.get("REMPORTE_BASE"):
+        return Path(os.environ["REMPORTE_BASE"])
+    racine = travail.trouver_espace()
+    if racine is not None:
+        return racine / travail.RESSOURCES / ".index"
+    return Path.home() / ".remporte" / "base"
 
 
 def indexer_dce(dossier: Path) -> int:
@@ -96,7 +102,8 @@ def indexer_base(source: Path, base: Path) -> int:
                 )
                 total += 1
         fiche = chemin_fiche(base)
-        if fiche.exists():
+        # Dans un espace de travail, la fiche est dans `ressources/` : déjà indexée.
+        if fiche.exists() and source.resolve() not in fiche.resolve().parents:
             for passage in decouper_passages(fiche.read_text(encoding="utf-8")):
                 connexion.execute(
                     "INSERT INTO passages (piece, passage) VALUES (?, ?)",
@@ -110,8 +117,12 @@ def indexer_base(source: Path, base: Path) -> int:
 
 
 def chemin_fiche(base: Path | None = None) -> Path:
-    """Fiche entreprise, rangée avec la base : lue en entier par les agents,
-    et indexée avec les documents pour `remporte base chercher`."""
+    """Fiche entreprise, lue en entier par les agents : `ressources/` de
+    l'espace de travail, sinon à côté de l'index de la base."""
+    if base is None and not os.environ.get("REMPORTE_BASE"):
+        racine = travail.trouver_espace()
+        if racine is not None:
+            return racine / travail.RESSOURCES / "fiche-entreprise.md"
     return Path(base or chemin_base()) / "fiche-entreprise.md"
 
 

@@ -16,6 +16,7 @@ from pathlib import Path
 from remporte import __version__
 from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
+    travail,
 )
 
 
@@ -132,7 +133,8 @@ def _construire_parser() -> argparse.ArgumentParser:
                                       required=True)
     pb = sous_base.add_parser("indexer", parents=[communes],
                               help="convertir et indexer un dossier de documents")
-    pb.add_argument("source", metavar="DOSSIER")
+    pb.add_argument("source", metavar="DOSSIER", nargs="?", default=None,
+                    help="défaut : ressources/ de l'espace de travail")
     pb.set_defaults(func=_cmd_base_indexer)
     pb = sous_base.add_parser("chercher", parents=[communes],
                               help="chercher dans la base entreprise")
@@ -155,6 +157,12 @@ def _construire_parser() -> argparse.ArgumentParser:
         help="formats parmi docx,html,analyse,feuille,matrice (défaut : tous)",
     )
     p.set_defaults(func=_cmd_exporter)
+
+    p = sous.add_parser("espace", parents=[communes],
+                        help="créer un espace de travail : ressources/ et DCEs/")
+    p.add_argument("chemin", nargs="?", default=".", metavar="CHEMIN",
+                   help="défaut : le répertoire courant")
+    p.set_defaults(func=_cmd_espace)
 
     p = sous.add_parser("fiche", parents=[communes],
                         help="fiche entreprise lue par les agents (créée par /remporte:init)")
@@ -251,10 +259,13 @@ def _cmd_init(args) -> int:
     if not source.exists():
         print(f"Erreur : source introuvable : {source}", file=sys.stderr)
         return 1
+    racine = travail.trouver_espace()
+    nom = source.stem or source.name
     if args.dossier:
         dossier = Path(args.dossier)
+    elif racine is not None:
+        dossier = racine / travail.DCES / nom
     else:
-        nom = source.stem or source.name
         dossier = Path.cwd() / f"{nom}-reponse"
     print(f"Initialisation depuis {source}…")
     donnees = espace.initialiser(source, dossier, forcer=args.forcer)
@@ -629,7 +640,16 @@ def _afficher_champs(titre: str, par_formulaire: dict) -> None:
 
 
 def _cmd_base_indexer(args) -> int:
-    source = Path(args.source)
+    racine = travail.trouver_espace()
+    if args.source:
+        source = Path(args.source)
+    elif racine is not None:
+        source = racine / travail.RESSOURCES
+    else:
+        print("Erreur : indiquez le dossier des documents de l'entreprise, ou "
+              "lancez la commande dans un espace de travail (remporte espace).",
+              file=sys.stderr)
+        return 1
     if not source.is_dir():
         print(f"Erreur : source introuvable ou pas un dossier : {source}",
               file=sys.stderr)
@@ -698,6 +718,19 @@ def _cmd_guide(args) -> int:
         )
         return 1
     print(contenu.rstrip())
+    return 0
+
+
+def _cmd_espace(args) -> int:
+    resultat = travail.creer_espace(Path(args.chemin))
+    if args.json:
+        _sortie_json(resultat)
+        return 0
+    print(f"Espace de travail : {resultat['espace']}")
+    for relatif in resultat["crees"]:
+        print(f"  créé : {relatif}")
+    print("Déposez les documents de l'entreprise dans ressources/, complétez "
+          "ressources/fiche-entreprise.md, puis : remporte base indexer")
     return 0
 
 

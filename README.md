@@ -30,15 +30,26 @@ uv tool install git+https://github.com/Remporte-dev/remporte
 
 Il faut Python 3.10 ou plus récent ; `uv` l'installe tout seul si besoin.
 
-## En trois commandes
+## L'espace de travail
+
+Tout vit dans un seul dossier, sur votre poste ou dans un dossier partagé :
 
 ```
-remporte base indexer ~/Documents/mon-entreprise   # vos références, CV, certifications
-remporte init ~/Téléchargements/DCE.zip            # crée DCE-reponse/
-cd DCE-reponse && claude                           # ou codex, gemini, pi…
+Remporte/
+  ressources/              vos documents, fiche-entreprise.md, index de recherche
+  DCEs/
+    2026-05-mairie-voirie/ un dossier par appel d'offres
 ```
 
-Puis demandez à l'agent : « réponds à cet appel d'offres ». Le dossier
+```
+remporte espace ~/Remporte                  # une fois
+# déposez vos références, CV, certifications dans ~/Remporte/ressources/
+cd ~/Remporte && remporte base indexer      # à refaire quand les documents changent
+remporte init ~/Téléchargements/DCE.zip     # crée DCEs/DCE/
+cd DCEs/DCE && claude                       # ou codex, gemini, pi…
+```
+
+Puis demandez à l'agent : « réponds à cet appel d'offres ». Chaque dossier
 contient un `AGENTS.md` qui lui indique la marche à suivre.
 
 ## Les étapes
@@ -58,7 +69,8 @@ contient un `AGENTS.md` qui lui indique la marche à suivre.
 ## Commandes
 
 ```
-remporte init <dce>              créer un dossier de réponse
+remporte espace [chemin]         créer l'espace de travail (ressources/, DCEs/)
+remporte init <dce>              créer un dossier de réponse (dans DCEs/)
 remporte etat                    avancement et prochaine étape
 remporte guide [étape]           méthode de l'étape
 remporte pieces                  inventaire des pièces

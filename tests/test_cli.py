@@ -287,3 +287,28 @@ def test_fiche_entreprise(tmp_path, monkeypatch, capsys):
     recherche.indexer_base(documents, base)
     resultats = recherche.chercher_base(base, "SIRET")
     assert resultats and resultats[0]["piece"] == "fiche-entreprise.md"
+
+
+def test_espace_de_travail(tmp_path, monkeypatch, capsys):
+    """ressources/ et DCEs/ : la base, la fiche et les dossiers de réponse s'y rangent seuls."""
+    from docx import Document
+
+    from remporte import cli, recherche
+
+    monkeypatch.delenv("REMPORTE_BASE", raising=False)
+    espace = tmp_path / "Remporte"
+    assert cli.main(["espace", str(espace)]) == 0
+    assert (espace / "ressources" / "fiche-entreprise.md").is_file()
+    assert (espace / "AGENTS.md").is_file() and (espace / "DCEs").is_dir()
+    (espace / "ressources" / "references.md").write_text(
+        "Référence fictive : maintenance d'un parc de 300 postes.\n", encoding="utf-8")
+    dce = tmp_path / "telechargements" / "DCE-mairie"
+    dce.mkdir(parents=True)
+    Document().save(dce / "RC.docx")
+    monkeypatch.chdir(espace / "DCEs")
+    assert cli.main(["base", "indexer"]) == 0
+    assert (espace / "ressources" / ".index" / "index.sqlite").is_file()
+    assert recherche.chercher_base(recherche.chemin_base(), "parc postes")
+    assert recherche.chemin_fiche() == espace / "ressources" / "fiche-entreprise.md"
+    assert cli.main(["init", str(dce)]) == 0
+    assert (espace / "DCEs" / "DCE-mairie" / ".remporte").is_dir()
