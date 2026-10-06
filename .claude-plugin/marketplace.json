@@ -1,0 +1,17 @@
+{
+  "name": "remporte",
+  "owner": {
+    "name": "Remporte",
+    "url": "https://remporte.fr"
+  },
+  "metadata": {
+    "description": "Outils Remporte pour répondre aux marchés publics avec un agent IA."
+  },
+  "plugins": [
+    {
+      "name": "remporte",
+      "source": "./",
+      "description": "Répondre à un appel d'offres public avec votre agent : lecture du DCE, analyse, go/no-go, plan, rédaction du mémoire technique, relecture, export."
+    }
+  ]
+}
