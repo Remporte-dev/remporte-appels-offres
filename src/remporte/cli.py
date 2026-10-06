@@ -63,7 +63,7 @@ def _construire_parser() -> argparse.ArgumentParser:
     p.add_argument("source", metavar="DCE")
     p.add_argument(
         "--dossier", metavar="CHEMIN",
-        help="dossier de réponse (défaut : <nom>-reponse/ à côté de la source)",
+        help="dossier de réponse (défaut : <nom>-reponse/ dans le répertoire courant)",
     )
     p.add_argument(
         "--forcer", action="store_true",
@@ -211,7 +211,7 @@ def _cmd_init(args) -> int:
         dossier = Path(args.dossier)
     else:
         nom = source.stem or source.name
-        dossier = source.parent / f"{nom}-reponse"
+        dossier = Path.cwd() / f"{nom}-reponse"
     print(f"Initialisation depuis {source}…")
     donnees = espace.initialiser(source, dossier, forcer=args.forcer)
     if args.json:

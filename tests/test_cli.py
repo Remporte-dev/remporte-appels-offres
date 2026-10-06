@@ -227,3 +227,20 @@ def test_cadre_couverture(tmp_path, capsys):
     sortie = capsys.readouterr().out
     assert "2 sur 5" in sortie
     assert "PP 002" in sortie and "PP 003" not in sortie
+
+
+def test_init_cree_le_dossier_dans_le_repertoire_courant(tmp_path, monkeypatch):
+    """Sans --dossier, le dossier de réponse naît là où l'on lance la commande."""
+    from docx import Document
+
+    from remporte import cli
+
+    sources = tmp_path / "telechargements"
+    sources.mkdir()
+    Document().save(sources / "RC.docx")
+    travail = tmp_path / "travail"
+    travail.mkdir()
+    monkeypatch.chdir(travail)
+    assert cli.main(["init", str(sources)]) == 0
+    assert (travail / "telechargements-reponse" / ".remporte").is_dir()
+    assert not (tmp_path / "telechargements-reponse").exists()
