@@ -1,5 +1,7 @@
 # Étape « analyse » — lire le DCE comme l'acheteur va noter
 
+> Puissance de modèle conseillée : standard (`remporte guide modeles`).
+
 Fichier à remplir : `02-analyse.md`.
 
 ## Ordre de lecture
@@ -14,7 +16,9 @@ Fichier à remplir : `02-analyse.md`.
    - la date et l'heure limites, la plateforme de dépôt, la visite, la date
      limite des questions, les variantes autorisées ou non, les PSE.
 2. **Le CRT** s'il existe (`remporte cadre`) : il impose la trame du mémoire.
-3. **Le CCTP** : ne le recopie pas. Relève les exigences qui devront trouver
+3. **Le CCTP** : ne le lis pas d'un bloc. `remporte lire cctp` rend son
+   sommaire quand il est long ; lis ensuite les seules pages utiles
+   (`--page N`) ou cherche (`remporte chercher`). Ne le recopie pas. Relève les exigences qui devront trouver
    une réponse explicite dans le mémoire (moyens, délais, niveaux de service,
    méthodes imposées, livrables, réversibilité, sécurité, RSE). Pour un gros
    CCTP, procède par recherche ciblée : `remporte chercher "<terme>"`.

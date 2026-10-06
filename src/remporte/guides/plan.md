@@ -1,5 +1,7 @@
 # Étape « plan » — la trame du mémoire
 
+> Puissance de modèle conseillée : standard (la plus capable si le CRT est long) (`remporte guide modeles`).
+
 Fichier à remplir : `04-plan.md`.
 
 ## Si le DCE contient un cadre de réponse (CRT)
@@ -30,6 +32,8 @@ mots.
   la limite de pages du RC (compte environ 500 mots par page).
 - Pas de section « Présentation de l'entreprise » longue si elle n'est pas
   notée : l'acheteur la lit dans la candidature. Une demi-page suffit.
+- Si `remporte formats` a trouvé une limite de pages, le total des volumes
+  visés doit tenir dedans, annexes exclues si le RC les exclut.
 - Ajoute en fin de plan les annexes demandées (CV, références, attestations,
   planning), sans les rédiger maintenant.
 

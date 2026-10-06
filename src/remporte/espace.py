@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from remporte import inventaire, recherche
+from remporte import formats, inventaire, recherche
 from remporte.lecture import convertir, decompresser
 
 ETAPES = ["pieces", "analyse", "go-no-go", "plan", "redaction", "relecture",
@@ -136,6 +136,15 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
     lignes += ["", "## Pièces attendues manquantes", ""]
     lignes += [f"- {message}" for message in manquantes] if manquantes \
         else ["Rien à signaler."]
+    constats = formats.detecter(dossier, pieces)
+    lignes += ["", "## Formats attendus", ""]
+    if constats:
+        lignes += [
+            f"- {formats.libelle(c)} — `dce/{c['piece']}` : « {c['extrait']} »"
+            for c in constats
+        ]
+    else:
+        lignes.append("Aucune contrainte de forme détectée.")
     remplissables = [p for p in pieces if p["type"] in PIECES_REMPLISSABLES]
     if remplissables:
         lignes += ["", "## Pièces à remplir dans le format de l'acheteur", ""]

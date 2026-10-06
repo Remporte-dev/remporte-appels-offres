@@ -244,3 +244,26 @@ def test_init_cree_le_dossier_dans_le_repertoire_courant(tmp_path, monkeypatch):
     assert cli.main(["init", str(sources)]) == 0
     assert (travail / "telechargements-reponse" / ".remporte").is_dir()
     assert not (tmp_path / "telechargements-reponse").exists()
+
+
+def test_lire_piece_longue_rend_le_sommaire(tmp_path, capsys):
+    """Une pièce longue donne d'abord son sommaire ; --tout rend le texte entier."""
+    from docx import Document
+
+    from remporte import cli, espace
+
+    source = tmp_path / "DCE"
+    source.mkdir()
+    document = Document()
+    for rang in range(1, 40):
+        document.add_heading(f"Article {rang} — Exigences", level=1)
+        document.add_paragraph("Le titulaire assure la prestation décrite. " * 25)
+    document.save(source / "CCTP.docx")
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source, dossier)
+    assert cli.main(["lire", "cctp", "--dossier", str(dossier)]) == 0
+    sommaire = capsys.readouterr().out
+    assert "Sommaire" in sommaire and "Article 39" in sommaire
+    assert len(sommaire) < 5000
+    assert cli.main(["lire", "cctp", "--tout", "--dossier", str(dossier)]) == 0
+    assert len(capsys.readouterr().out) > 30_000

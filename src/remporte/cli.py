@@ -13,7 +13,9 @@ import re
 import sys
 from pathlib import Path
 
-from remporte import cadre, espace, export, inventaire, lecture, recherche
+from remporte import (
+    cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,13 +87,33 @@ def _construire_parser() -> argparse.ArgumentParser:
     p.add_argument("fragment", metavar="FRAGMENT")
     p.add_argument("--page", type=int, default=None, metavar="N",
                    help="ne rendre que la page N (PDF uniquement)")
+    p.add_argument("--tout", action="store_true",
+                   help="rendre tout le texte même d'une pièce longue")
     p.set_defaults(func=_cmd_lire)
 
     p = sous.add_parser("chercher", parents=[communes, avec_dossier],
                         help="retrouver un passage dans tout le DCE")
     p.add_argument("requete", metavar="TERMES")
-    p.add_argument("--limite", type=int, default=10)
+    p.add_argument("--limite", type=int, default=5)
     p.set_defaults(func=_cmd_chercher)
+
+    p = sous.add_parser("formats", parents=[communes, avec_dossier],
+                        help="formats attendus par l'acheteur : soutenance, "
+                             "pages, cadres Excel/Word à compléter")
+    p.set_defaults(func=_cmd_formats)
+
+    p_cand = sous.add_parser("candidature", parents=[communes],
+                             help="formulaires DC1/DC2/DC4 officiels")
+    sous_cand = p_cand.add_subparsers(dest="sous_commande", metavar="action",
+                                      required=True)
+    pc = sous_cand.add_parser("preparer", parents=[communes, avec_dossier],
+                              help="créer candidature/valeurs.json (jamais "
+                                   "remplacé s'il existe)")
+    pc.set_defaults(func=_cmd_candidature_preparer)
+    pc = sous_cand.add_parser("remplir", parents=[communes, avec_dossier],
+                              help="écrire candidature/DC1.docx, DC2.docx et "
+                                   "DC4.docx (si sous-traitance)")
+    pc.set_defaults(func=_cmd_candidature_remplir)
 
     p = sous.add_parser("cadre", parents=[communes, avec_dossier],
                         help="trame de réponse imposée par l'acheteur (CRT)")
@@ -112,18 +134,31 @@ def _construire_parser() -> argparse.ArgumentParser:
     pb = sous_base.add_parser("chercher", parents=[communes],
                               help="chercher dans la base entreprise")
     pb.add_argument("requete", metavar="TERMES")
-    pb.add_argument("--limite", type=int, default=10)
+    pb.add_argument("--limite", type=int, default=5)
     pb.set_defaults(func=_cmd_base_chercher)
 
     p = sous.add_parser("guide", help="méthode d'une étape (sans argument : liste)")
     p.add_argument("etape", nargs="?", default=None, metavar="ETAPE")
     p.set_defaults(func=_cmd_guide)
 
-    p = sous.add_parser("exporter", parents=[communes, avec_dossier],
-                        help="produire export/memoire.docx et export/dossier.html")
-    p.add_argument("--formats", default="docx,html", metavar="LISTE",
-                   help="formats parmi docx,html (défaut : les deux)")
+    p = sous.add_parser(
+        "exporter", parents=[communes, avec_dossier],
+        help="produire memoire.docx, dossier.html et les documents de travail "
+             "(analyse, feuille de route, matrice de conformité)",
+    )
+    p.add_argument(
+        "--formats",
+        default="docx,html,analyse,feuille,matrice", metavar="LISTE",
+        help="formats parmi docx,html,analyse,feuille,matrice (défaut : tous)",
+    )
     p.set_defaults(func=_cmd_exporter)
+
+    p = sous.add_parser("html", parents=[communes],
+                        help="mettre un fichier markdown en page HTML (charte Remporte)")
+    p.add_argument("source", metavar="FICHIER.md")
+    p.add_argument("-o", "--sortie", default=None, metavar="FICHIER.html",
+                   help="défaut : même nom, extension .html")
+    p.set_defaults(func=_cmd_html)
 
     p = sous.add_parser("offre", help="l'offre Remporte en un écran")
     p.set_defaults(func=_cmd_offre)
@@ -341,8 +376,61 @@ def _cmd_lire(args) -> int:
             return 1
         print(extrait)
         return 0
+    if len(texte) > _SEUIL_PIECE_LONGUE and not args.tout:
+        print(_sommaire(texte, piece["chemin"]))
+        return 0
     print(texte)
     return 0
+
+
+# Au-delà, une pièce lue d'un bloc coûte cher à l'agent (un CCTP fait souvent
+# plusieurs centaines de milliers de caractères) : on rend d'abord son sommaire.
+_SEUIL_PIECE_LONGUE = 30_000
+
+
+def _sommaire(texte: str, chemin: str) -> str:
+    """Titres de la pièce (ou première ligne de chaque page d'un PDF), avec la
+    façon de lire la suite sans tout charger."""
+    taille = f"{len(texte):,}".replace(",", " ")
+    lignes = [f"dce/{chemin} : {taille} caractères, pièce longue.", "Sommaire :"]
+    titres = re.findall(r"^(#{1,3}) +(.+)$", texte, re.MULTILINE)
+    if titres:
+        for diese, titre in titres:
+            lignes.append(f"{'  ' * (len(diese) - 1)}- {titre.strip()[:90]}")
+    else:
+        parties = re.split(r"<!-- page (\d+) -->", texte)
+        pages = [("1", parties[0])] + list(zip(parties[1::2], parties[2::2]))
+        repetees = _lignes_repetees([contenu for _, contenu in pages])
+        for numero, contenu in pages:
+            premiere = next(
+                (l.strip() for l in contenu.splitlines()
+                 if len(l.strip()) > 3 and _forme(l) not in repetees),
+                "",
+            )
+            if premiere:
+                lignes.append(f"  page {numero} : {premiere[:90]}")
+    lignes += [
+        "",
+        "Pour lire sans tout charger : `remporte chercher \"<termes>\"` pour un passage,",
+        "`remporte lire <pièce> --page N` pour une page, `--tout` pour l'ensemble.",
+    ]
+    return "\n".join(lignes)
+
+
+def _forme(ligne: str) -> str:
+    """Ligne sans chiffres ni blancs : « Page 3/185 » et « Page 4/185 » se valent."""
+    return re.sub(r"[\d\s]+", "", ligne)
+
+
+def _lignes_repetees(pages: list[str]) -> set[str]:
+    """En-têtes et pieds de page : les lignes présentes sur au moins un tiers
+    des pages."""
+    compte: dict[str, int] = {}
+    for contenu in pages:
+        for forme in {_forme(l) for l in contenu.splitlines() if l.strip()}:
+            compte[forme] = compte.get(forme, 0) + 1
+    seuil = max(3, len(pages) // 3)
+    return {forme for forme, nombre in compte.items() if nombre >= seuil}
 
 
 def _indenter(texte: str) -> str:
@@ -435,29 +523,15 @@ def _cmd_cadre(args) -> int:
     return 0
 
 
-def _identifiant(point: dict) -> str | None:
-    """« PP 009 » d'un point issu d'une liste numérotée, sinon None."""
-    trouve = re.match(r"([A-Z]+) ?(\d+) — ", point["titre"])
-    return f"{trouve.group(1)} {trouve.group(2)}" if trouve else None
-
-
 def _afficher_couverture(dossier: Path, resultat: dict, en_json: bool) -> int:
     """Exigences numérotées du CRT qu'aucune section ne cite par son identifiant."""
-    if resultat["origine"] != "liste":
+    entrees = cadre.couverture(dossier, resultat)
+    if entrees is None:
         print("Le contrôle de couverture demande un CRT à exigences numérotées "
               "(« PP 001 »…) ; celui-ci n'en a pas. Relisez-le point par point.")
         return 0
-    texte = "\n".join(
-        f.read_text(encoding="utf-8", errors="replace")
-        for f in sorted((dossier / "sections").glob("*.md"))
-    )
-    absents = []
-    for point in resultat["points"]:
-        prefixe, numero = _identifiant(point).split()
-        motif = rf"(?<![A-Za-z]){prefixe}[ _-]?0*{int(numero)}(?!\d)"
-        if not re.search(motif, texte):
-            absents.append(point)
-    total = len(resultat["points"])
+    total = len(entrees)
+    absents = [entree["point"] for entree in entrees if not entree["couverte"]]
     if en_json:
         _sortie_json({"total": total, "absents": absents})
         return 0
@@ -467,6 +541,82 @@ def _afficher_couverture(dossier: Path, resultat: dict, en_json: bool) -> int:
     if absents:
         print("Citez l'identifiant (ex. « PP 009 ») dans la section qui y répond.")
     return 0
+
+
+def _cmd_formats(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    donnees = _etat_json(dossier)
+    if donnees is None:
+        print(
+            f"Erreur : {dossier} n'a pas d'inventaire (etat.json absent). "
+            "Relancez `remporte init`.",
+            file=sys.stderr,
+        )
+        return 1
+    constats = formats.detecter(dossier, donnees["pieces"])
+    if args.json:
+        _sortie_json({"constats": constats})
+        return 0
+    if not constats:
+        print("Aucune contrainte de forme détectée dans ce DCE.")
+        return 0
+    print(f"Formats attendus par l'acheteur ({len(constats)} constats) :")
+    for constat in constats:
+        print(f"- {formats.libelle(constat)}")
+        print(f"  source : dce/{constat['piece']}")
+        print(f"  « {constat['extrait']} »")
+    return 0
+
+
+def _cmd_candidature_preparer(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    chemin = candidature.preparer(dossier)
+    if args.json:
+        _sortie_json({"valeurs": str(chemin)})
+        return 0
+    print(f"Valeurs de candidature : {chemin}")
+    print("Renseignez chaque champ « valeur », puis : "
+          "remporte candidature remplir")
+    return 0
+
+
+def _cmd_candidature_remplir(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = candidature.remplir(dossier)
+    if args.json:
+        _sortie_json(resultat)
+        return 0
+    for produit in resultat["produits"]:
+        print(f"{produit['formulaire']} → {dossier / produit['chemin']}")
+    for non_produit in resultat["non_produits"]:
+        print(f"{non_produit['formulaire']} → non produit "
+              f"({non_produit['motif']})")
+    _afficher_champs(
+        "Champs non remplis (complétez candidature/valeurs.json puis "
+        "relancez) :", resultat["non_remplis"])
+    _afficher_champs(
+        "Optionnels laissés vides (sans objet si vous n'avez rien à dire) :",
+        resultat["optionnels_vides"])
+    _afficher_champs("À porter à la main dans le fichier :",
+                     resultat["manuels"])
+    for formulaire, anomalies in resultat["anomalies"].items():
+        for var, message in anomalies.items():
+            print(f"  ! {formulaire}/{var} : {message}")
+    return 0
+
+
+def _afficher_champs(titre: str, par_formulaire: dict) -> None:
+    if not par_formulaire:
+        return
+    print(titre)
+    for formulaire, variables in par_formulaire.items():
+        print(f"  {formulaire} : {', '.join(variables)}")
 
 
 def _cmd_base_indexer(args) -> int:
@@ -508,16 +658,28 @@ def _cmd_base_chercher(args) -> int:
     return 0
 
 
+GUIDES_ANNEXES = {
+    "formats": "limite de pages, fichier imposé, soutenance",
+    "soutenance": "support préparé sur les fichiers de l'entreprise",
+    "excel": "répondre dans un fichier Excel ou Word imposé",
+    "candidature": "DC1, DC2, DC4",
+    "modeles": "puissance de modèle et sous-agents par tâche",
+}
+
+
 def _cmd_guide(args) -> int:
     if not args.etape:
         print("Étapes du dossier de réponse :")
         for etape in espace.ETAPES:
             print(f"  remporte guide {etape}")
+        print("Selon le dossier :")
+        for nom, objet in GUIDES_ANNEXES.items():
+            print(f"  remporte guide {nom:<12} {objet}")
         print("Aussi : remporte offre")
         return 0
-    if args.etape not in espace.ETAPES:
-        print(f"Erreur : étape inconnue « {args.etape} ».", file=sys.stderr)
-        print("Étapes : " + ", ".join(espace.ETAPES), file=sys.stderr)
+    if args.etape not in espace.ETAPES and args.etape not in GUIDES_ANNEXES:
+        print(f"Erreur : guide inconnu « {args.etape} ».", file=sys.stderr)
+        print("Guides : " + ", ".join([*espace.ETAPES, *GUIDES_ANNEXES]), file=sys.stderr)
         return 1
     contenu = _lire_ressource("guides", f"{args.etape}.md")
     if contenu is None:
@@ -530,15 +692,30 @@ def _cmd_guide(args) -> int:
     return 0
 
 
+def _cmd_html(args) -> int:
+    source = Path(args.source)
+    if not source.is_file():
+        print(f"Erreur : fichier introuvable : {source}", file=sys.stderr)
+        return 1
+    sortie = Path(args.sortie) if args.sortie else source.with_suffix(".html")
+    texte = source.read_text(encoding="utf-8", errors="replace")
+    sortie.write_text(charte.page_depuis_markdown(texte), encoding="utf-8")
+    if args.json:
+        _sortie_json({"html": str(sortie)})
+    else:
+        print(f"html : {sortie}")
+    return 0
+
+
 def _cmd_exporter(args) -> int:
     dossier, code = _dossier_ou_code(args)
     if dossier is None:
         return code
     formats = {f.strip().lower() for f in args.formats.split(",") if f.strip()}
-    inconnus = formats - {"docx", "html"}
+    inconnus = formats - {"docx", "html", "analyse", "feuille", "matrice"}
     if inconnus:
         print(f"Erreur : formats inconnus : {', '.join(sorted(inconnus))} "
-              "(choix : docx, html)", file=sys.stderr)
+              "(choix : docx, html, analyse, feuille, matrice)", file=sys.stderr)
         return 1
     if not formats:
         formats = {"docx", "html"}

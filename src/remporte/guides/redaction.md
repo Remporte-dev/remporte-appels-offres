@@ -1,5 +1,7 @@
 # Étape « redaction » — écrire chaque section
 
+> Puissance de modèle conseillée : la plus capable pour les sections les plus pondérées, standard pour le reste (`remporte guide modeles`).
+
 Une section à la fois, dans l'ordre du plan. Pour chacune :
 
 1. **Relis ce qui est noté** : la ligne du tableau de correspondance de

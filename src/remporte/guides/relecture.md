@@ -1,5 +1,7 @@
 # Étape « relecture » — se mettre à la place de l'acheteur
 
+> Puissance de modèle conseillée : la plus capable, de préférence un regard neuf (autre modèle ou sous-agent) (`remporte guide modeles`).
+
 Fichier à remplir : `05-relecture.md`.
 
 1. **Note le mémoire avec la grille de l'acheteur.** Pour chaque critère et

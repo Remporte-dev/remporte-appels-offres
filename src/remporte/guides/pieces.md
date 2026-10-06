@@ -8,4 +8,7 @@
    version texte. Si c'est le RC ou le CCTP, c'est bloquant pour l'analyse.
 3. Si le RC manque, demande-le avant d'aller plus loin : sans lui, on ne
    connaît ni les critères ni les pièces à remettre.
-4. Passe à l'étape suivante : `remporte guide analyse`.
+4. Lance `remporte formats` : limite de pages, soutenance, fichier Excel ou
+   Word à compléter. Chaque constat change la façon de répondre :
+   `remporte guide formats`.
+5. Passe à l'étape suivante : `remporte guide analyse`.

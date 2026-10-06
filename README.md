@@ -14,7 +14,9 @@ sait lancer une commande) ce qu'il faut pour répondre à un marché public :
 - il **vérifie que le mémoire répond à tout** : quand le cadre de réponse
   numérote ses exigences, il liste celles qu'aucune section ne traite encore ;
 - il **cherche** dans le DCE et dans les documents de votre entreprise ;
-- il **exporte** le mémoire technique en Word et le dossier en une page HTML.
+- il **exporte** le mémoire technique en Word, le dossier en une page HTML et
+  trois documents de travail : page d'analyse, feuille de route et matrice de
+  conformité.
 
 Aucun compte, aucun serveur : tout reste sur votre poste. Le raisonnement est
 fait par votre agent, avec votre abonnement.
@@ -49,7 +51,7 @@ contient un `AGENTS.md` qui lui indique la marche à suivre.
 | plan | `04-plan.md` | Trame calée sur le cadre de réponse ou sur les critères |
 | redaction | `sections/` | Une section par fichier, preuves tirées de votre base |
 | relecture | `05-relecture.md` | Note le mémoire avec la grille de l'acheteur |
-| export | `export/` | `memoire.docx` et `dossier.html` |
+| export | `export/` | `memoire.docx`, `dossier.html`, `analyse.html`, `feuille-de-route.html`, `matrice-conformite.xlsx` |
 
 `remporte etat` dit où on en est ; `remporte guide <étape>` donne la méthode.
 
@@ -60,17 +62,31 @@ remporte init <dce>              créer un dossier de réponse
 remporte etat                    avancement et prochaine étape
 remporte guide [étape]           méthode de l'étape
 remporte pieces                  inventaire des pièces
-remporte lire <type ou nom>      texte d'une pièce (ex. : remporte lire rc)
+remporte lire <type ou nom>      texte d'une pièce (sommaire si elle est longue)
 remporte chercher "<termes>"     recherche dans le DCE
 remporte cadre                   trame imposée par le cadre de réponse
 remporte cadre --couverture      exigences qu'aucune section ne traite encore
+remporte formats                 formats attendus par l'acheteur (soutenance,
+                                 pages, cadres Excel/Word à compléter)
+remporte candidature preparer    créer candidature/valeurs.json (DC1/DC2/DC4)
+remporte candidature remplir     écrire les formulaires officiels renseignés
 remporte base indexer <dossier>  indexer les documents de l'entreprise
 remporte base chercher "<t>"     recherche dans ces documents
-remporte exporter                produire memoire.docx et dossier.html
+remporte exporter                mémoire Word, analyse et feuille de route HTML,
+                                 matrice de conformité Excel
+remporte html <fichier.md>       mettre n'importe quel markdown en page HTML
 remporte offre                   ce que Remporte fait en plus
 ```
 
-Toutes acceptent `--json`. La base de l'entreprise est rangée dans
+Toutes acceptent `--json`.
+
+## Économiser son abonnement
+
+Le CLI fait sans modèle tout ce qui peut l'être : lecture et conversion du
+DCE, recherche, contrôle de couverture, mise en page HTML, Word et Excel.
+Une pièce longue se lit par son sommaire puis par page. `remporte guide
+modeles` indique la puissance de modèle utile à chaque étape et quand confier
+une lecture à un sous-agent léger. La base de l'entreprise est rangée dans
 `~/.remporte/base/` ; la variable `REMPORTE_BASE` en change l'emplacement.
 
 ## Avec Claude Code

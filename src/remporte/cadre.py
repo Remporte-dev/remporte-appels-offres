@@ -175,6 +175,46 @@ def _points_par_liste(texte: str) -> list[tuple[str, str]]:
     return points
 
 
+def identifiant_du_point(point: dict) -> str | None:
+    """« PP 009 » d'un point issu d'une liste numérotée, sinon None."""
+    trouve = re.match(r"([A-Z]+) ?(\d+) — ", point["titre"])
+    return f"{trouve.group(1)} {trouve.group(2)}" if trouve else None
+
+
+def couverture(dossier: Path, resultat: dict) -> list[dict] | None:
+    """Pour chaque exigence numérotée du CRT : les sections qui la citent.
+
+    Une section « cite » l'exigence quand son texte contient l'identifiant
+    (« PP 009 », tolérant sur séparateurs et zéros de tête). Rend une entrée
+    {point, identifiant, sections (noms de fichiers), couverte} par point, ou
+    None si le cadre n'est pas une liste numérotée (origine != « liste ») : le
+    contrôle point par point n'a alors pas de sens.
+    """
+    if resultat.get("origine") != "liste":
+        return None
+    sections = {
+        fichier.name: fichier.read_text(encoding="utf-8", errors="replace")
+        for fichier in sorted((Path(dossier) / "sections").glob("*.md"))
+    }
+    entrees: list[dict] = []
+    for point in resultat["points"]:
+        identifiant = identifiant_du_point(point)
+        citantes: list[str] = []
+        if identifiant:
+            prefixe, numero = identifiant.split()
+            motif = rf"(?<![A-Za-z]){prefixe}[ _-]?0*{int(numero)}(?!\d)"
+            citantes = [
+                nom for nom, texte in sections.items() if re.search(motif, texte)
+            ]
+        entrees.append({
+            "point": point,
+            "identifiant": identifiant,
+            "sections": citantes,
+            "couverte": bool(citantes),
+        })
+    return entrees
+
+
 def extraire_cadre(piece: Path) -> dict:
     """Trame imposée par l'acheteur (CRT Word).
 

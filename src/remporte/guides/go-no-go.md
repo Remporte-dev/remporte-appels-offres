@@ -1,5 +1,7 @@
 # Étape « go-no-go » — faut-il répondre ?
 
+> Puissance de modèle conseillée : la plus capable (`remporte guide modeles`).
+
 Fichier à remplir : `03-go-no-go.md`.
 
 1. Réponds à chaque question du tableau à partir de `02-analyse.md` et de la
