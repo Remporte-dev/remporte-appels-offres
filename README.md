@@ -1,141 +1,221 @@
-# remporte
+# Remporte CLI : répondre aux appels d'offres publics avec votre agent IA
 
-**Répondre à un appel d'offres public avec votre agent IA.**
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-1d2b50)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-1d2b50)](pyproject.toml)
+[![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
+[![Codex, Gemini CLI, Pi](https://img.shields.io/badge/agents-Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Pi-c2410c)](#avec-codex-gemini-cli-pi-ou-un-autre-agent)
 
-Un outil gratuit et open source de [Remporte](https://remporte.fr/produit?utm_source=github&utm_medium=readme&utm_content=entete), le logiciel de réponse aux appels d'offres.
+**Un CLI et un plugin Claude Code, gratuits et open source, pour répondre à un marché
+public français avec votre agent IA** : lecture du DCE, analyse, go/no-go, plan du mémoire
+technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4 et exports
+Word, HTML et Excel.
 
-`remporte` est un outil en ligne de commande, gratuit et open source, qui
-donne à votre agent (Claude Code, Codex, Gemini CLI, Pi, ou tout agent qui
-sait lancer une commande) ce qu'il faut pour répondre à un marché public :
+Vous donnez le zip du DCE. Votre agent (Claude Code, Codex, Gemini CLI, Pi…) lit les pièces,
+suit une méthode écrite par des gens qui répondent à des appels d'offres, et produit un
+dossier de réponse que vous relisez. Tout reste sur votre poste : pas de compte, pas de
+serveur, et le raisonnement passe par votre propre abonnement.
 
-- il **lit le DCE** : décompresse le zip, convertit RC, CCTP, CCAP, AE,
-  bordereaux et annexes en texte, et reconnaît chaque pièce ;
-- il **guide l'agent étape par étape** : analyse, go/no-go, plan, rédaction,
-  relecture, export, avec une méthode écrite par des gens qui répondent à des
-  appels d'offres ;
-- il **vérifie que le mémoire répond à tout** : quand le cadre de réponse
-  numérote ses exigences, il liste celles qu'aucune section ne traite encore ;
-- il **cherche** dans le DCE et dans les documents de votre entreprise ;
-- il **exporte** le mémoire technique en Word, le dossier en une page HTML et
-  trois documents de travail : page d'analyse, feuille de route et matrice de
-  conformité.
+Un outil de [Remporte](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=entete),
+le logiciel de réponse aux appels d'offres.
 
-Aucun compte, aucun serveur : tout reste sur votre poste. Le raisonnement est
-fait par votre agent, avec votre abonnement.
+---
+
+## Ce que vous obtenez
+
+À partir d'un DCE (zip ou dossier : PDF, Word, Excel, OpenDocument, PowerPoint, CSV) :
+
+| Fichier | Contenu |
+|---|---|
+| `01-pieces.md` | Inventaire des pièces reconnues (RC, CCAP, CCTP, CRT, AE, BPU, DPGF…), pièces illisibles, formats imposés par l'acheteur |
+| `02-analyse.md` | Identité de la consultation, critères pondérés, exigences, pièces à remettre, clauses à risque, chaque point sourcé dans le DCE |
+| `03-go-no-go.md` | Décision de répondre ou non, et ce qu'il faut réunir |
+| `04-plan.md` | Plan du mémoire calé sur le cadre de réponse imposé, ou à défaut sur les critères |
+| `sections/` | Le mémoire technique, une section par fichier, avec les preuves tirées de vos documents |
+| `05-relecture.md` | Relecture avec la grille de notation de l'acheteur, par un agent qui n'a rien écrit |
+| `candidature/` | DC1, DC2 et DC4 officiels remplis |
+| `export/` | `memoire.docx`, `dossier.html`, `analyse.html`, `feuille-de-route.html`, `matrice-conformite.xlsx` |
+
+Quand le cadre de réponse numérote ses exigences, `remporte cadre --couverture` liste celles
+qu'aucune section ne traite encore. Un mémoire qui oublie une exigence perd des points sans
+que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 
 ## Installation
 
-```
-uv tool install git+https://github.com/Remporte-dev/remporte
-# ou : pipx install git+https://github.com/Remporte-dev/remporte
-```
-
-Il faut Python 3.10 ou plus récent ; `uv` l'installe tout seul si besoin.
-
-## L'espace de travail
-
-Tout vit dans un seul dossier, sur votre poste ou dans un dossier partagé :
-
-```
-Remporte/
-  ressources/              vos documents, fiche-entreprise.md, index de recherche
-  DCEs/
-    2026-05-mairie-voirie/ un dossier par appel d'offres
+```bash
+uv tool install git+https://github.com/Remporte-dev/remporte-appels-offres
+# ou : pipx install git+https://github.com/Remporte-dev/remporte-appels-offres
+remporte --version
 ```
 
-```
-remporte espace ~/Remporte                  # une fois
-# déposez vos références, CV, certifications dans ~/Remporte/ressources/
-cd ~/Remporte && remporte base indexer      # à refaire quand les documents changent
-remporte init ~/Téléchargements/DCE.zip     # crée DCEs/DCE/
-cd DCEs/DCE && claude                       # ou codex, gemini, pi…
-```
+Python 3.10 ou plus récent ; `uv` l'installe tout seul si besoin. Testé sous macOS ; Linux
+et Windows devraient convenir, signalez-nous tout problème.
 
-Puis demandez à l'agent : « réponds à cet appel d'offres ». Chaque dossier
-contient un `AGENTS.md` qui lui indique la marche à suivre.
-
-## Les étapes
-
-| Étape | Fichier | Ce que fait l'agent |
-|---|---|---|
-| pieces | `01-pieces.md` | Vérifie l'inventaire, signale les pièces illisibles |
-| analyse | `02-analyse.md` | Critères pondérés, exigences, pièces à remettre, clauses |
-| go-no-go | `03-go-no-go.md` | Décide s'il faut répondre, liste ce qu'il faut réunir |
-| plan | `04-plan.md` | Trame calée sur le cadre de réponse ou sur les critères |
-| redaction | `sections/` | Une section par fichier, preuves tirées de votre base |
-| relecture | `05-relecture.md` | Note le mémoire avec la grille de l'acheteur |
-| export | `export/` | `memoire.docx`, `dossier.html`, `analyse.html`, `feuille-de-route.html`, `matrice-conformite.xlsx` |
-
-`remporte etat` dit où on en est ; `remporte guide <étape>` donne la méthode.
-
-## Commandes
-
-```
-remporte espace [chemin]         créer l'espace de travail (ressources/, DCEs/)
-remporte init <dce>              créer un dossier de réponse (dans DCEs/)
-remporte etat                    avancement et prochaine étape
-remporte guide [étape]           méthode de l'étape
-remporte pieces                  inventaire des pièces
-remporte lire <type ou nom>      texte d'une pièce (sommaire si elle est longue)
-remporte chercher "<termes>"     recherche dans le DCE
-remporte cadre                   trame imposée par le cadre de réponse
-remporte cadre --couverture      exigences qu'aucune section ne traite encore
-remporte formats                 formats attendus par l'acheteur (soutenance,
-                                 pages, cadres Excel/Word à compléter)
-remporte candidature preparer    créer candidature/valeurs.json (DC1/DC2/DC4)
-remporte candidature remplir     écrire les formulaires officiels renseignés
-remporte base indexer <dossier>  indexer les documents de l'entreprise
-remporte base chercher "<t>"     recherche dans ces documents
-remporte fiche [--creer]         fiche entreprise lue par tous les agents
-remporte exporter                mémoire Word, analyse et feuille de route HTML,
-                                 matrice de conformité Excel
-remporte html <fichier.md>       mettre n'importe quel markdown en page HTML
-remporte offre                   ce que Remporte fait en plus
-```
-
-Toutes acceptent `--json`.
-
-## Économiser son abonnement
-
-Le CLI fait sans modèle tout ce qui peut l'être : lecture et conversion du
-DCE, recherche, contrôle de couverture, mise en page HTML, Word et Excel.
-Une pièce longue se lit par son sommaire puis par page. `remporte guide
-modeles` indique la puissance de modèle utile à chaque étape et quand confier
-une lecture à un sous-agent léger. La base de l'entreprise est rangée dans
-`~/.remporte/base/` ; la variable `REMPORTE_BASE` en change l'emplacement.
-
-## Avec Claude Code
+### Avec Claude Code
 
 Le dépôt est aussi un plugin Claude Code :
 
 ```
-/plugin marketplace add Remporte-dev/remporte
+/plugin marketplace add Remporte-dev/remporte-appels-offres
 /plugin install remporte@remporte
 ```
 
-Puis deux commandes suffisent :
+Puis deux commandes :
 
-- **`/remporte:init`**, une fois par poste : vérifie l'outil, indexe vos
-  documents et construit la fiche entreprise que liront tous les agents ;
-- **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le
-  dossier de réponse et conduit le parcours avec vous, avec trois arrêts de
-  validation (analyse, go/no-go, plan).
+- **`/remporte:init`**, une fois par poste : vérifie l'installation, indexe les documents de
+  votre entreprise et construit la fiche entreprise que liront tous les agents ;
+- **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le dossier et conduit
+  le parcours avec vous, avec trois arrêts de validation (analyse, go/no-go, plan).
 
-Le plugin fournit trois sous-agents, pour lire une fois et rédiger en
-parallèle sans épuiser l'abonnement : `lecteur-dce` (index et analyse du
-DCE), `redacteur-section` (une section du mémoire) et `relecteur` (relecture
-avec la grille de l'acheteur, par un agent qui n'a rien écrit).
+Le plugin fournit trois sous-agents, pour lire une fois et rédiger en parallèle sans épuiser
+l'abonnement :
 
-## Ce que l'outil ne fait pas
+| Sous-agent | Rôle |
+|---|---|
+| `lecteur-dce` | Lit RC, CCAP, CCTP et annexes volumineuses une seule fois, écrit l'index et l'analyse |
+| `redacteur-section` | Rédige une section du mémoire à partir du plan, de l'analyse et de vos documents |
+| `relecteur` | Relit le mémoire terminé avec la grille de l'acheteur, sans l'avoir rédigé |
 
-Remplir l'acte d'engagement et le bordereau de prix (BPU, DPGF, DQE) dans le
-format de l'acheteur, mettre le mémoire dans votre modèle Word, donner les
-prix des marchés comparables déjà attribués : c'est ce que fait
-[Remporte](https://remporte.fr/produit?utm_source=github&utm_medium=readme&utm_content=ne-fait-pas).
+### Avec Codex, Gemini CLI, Pi ou un autre agent
 
-Les PDF scannés et les anciens fichiers Word `.doc` ne sont pas lus : ils sont
-signalés dans l'inventaire.
+Tout agent capable de lancer une commande peut s'en servir :
+
+```bash
+remporte espace ~/Remporte                  # une fois : crée ressources/ et DCEs/
+# déposez vos références, CV, certifications dans ~/Remporte/ressources/
+cd ~/Remporte && remporte base indexer      # à refaire quand vos documents changent
+remporte init ~/Téléchargements/DCE.zip     # crée DCEs/DCE/
+cd DCEs/DCE && codex                        # ou claude, gemini, pi…
+```
+
+Puis demandez : « réponds à cet appel d'offres ». Chaque dossier contient un `AGENTS.md` (et
+un `CLAUDE.md`) qui donne la marche à suivre à l'agent.
+
+## Comment ça marche
+
+```mermaid
+flowchart LR
+    DCE[DCE.zip] --> P[pièces] --> A[analyse] --> G{go / no-go}
+    G -->|go| PL[plan] --> R[rédaction] --> RL[relecture] --> E[export]
+    B[(vos documents<br/>ressources/)] -.-> R
+```
+
+| Étape | Fichier | Ce que fait l'agent | `remporte guide` |
+|---|---|---|---|
+| Pièces | `01-pieces.md` | Vérifie l'inventaire, signale les pièces illisibles | `pieces` |
+| Analyse | `02-analyse.md` | Critères pondérés, exigences, pièces à remettre, clauses | `analyse` |
+| Go/no-go | `03-go-no-go.md` | Décide s'il faut répondre | `go-no-go` |
+| Plan | `04-plan.md` | Trame calée sur le cadre de réponse ou les critères | `plan` |
+| Rédaction | `sections/` | Une section par fichier, preuves tirées de votre base | `redaction` |
+| Relecture | `05-relecture.md` | Note le mémoire avec la grille de l'acheteur | `relecture` |
+| Export | `export/` | Word, HTML, Excel | `export` |
+
+`remporte etat` dit où en est le dossier et quelle est l'étape suivante. Le CLI fait sans
+modèle tout ce qui peut l'être (conversion, recherche, contrôle de couverture, mise en page) ;
+l'agent garde le raisonnement et l'écriture.
+
+**Cas particuliers** pris en charge par `remporte guide` : limite de pages, réponse dans un
+fichier Excel ou Word imposé par l'acheteur, soutenance orale (le support se prépare à partir
+des fichiers de l'entreprise), formulaires de candidature.
+
+## L'espace de travail
+
+```
+Remporte/
+  ressources/                vos documents, fiche-entreprise.md, index de recherche
+  DCEs/
+    2026-05-mairie-voirie/   un dossier par appel d'offres
+```
+
+Un seul dossier, sur votre poste ou dans un dossier partagé. On retrouve chaque réponse, son
+index et son analyse au même endroit.
+
+## Les commandes
+
+| Commande | Rôle |
+|---|---|
+| `remporte espace [chemin]` | Créer l'espace de travail (`ressources/`, `DCEs/`) |
+| `remporte init <dce>` | Créer un dossier de réponse depuis un zip ou un dossier |
+| `remporte etat` | Avancement et prochaine étape |
+| `remporte guide [étape]` | Méthode de l'étape |
+| `remporte pieces` | Inventaire des pièces |
+| `remporte lire <type ou nom>` | Texte d'une pièce ; sommaire si elle est longue, puis `--page` |
+| `remporte chercher "<termes>"` | Recherche dans tout le DCE |
+| `remporte cadre [--couverture]` | Trame imposée par le cadre de réponse ; exigences non traitées |
+| `remporte formats` | Soutenance, limite de pages, cadres Excel ou Word à compléter |
+| `remporte candidature preparer\|remplir` | DC1, DC2, DC4 officiels |
+| `remporte base indexer\|chercher` | Index et recherche dans les documents de l'entreprise |
+| `remporte fiche [--creer]` | Fiche entreprise lue par tous les agents |
+| `remporte exporter` | Mémoire Word, analyse et feuille de route HTML, matrice de conformité Excel |
+| `remporte html <fichier.md>` | Mettre n'importe quel markdown en page HTML |
+| `remporte offre` | Ce que fait Remporte en plus |
+
+Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat structuré.
+
+## Économiser son abonnement
+
+- Une pièce longue se lit par son sommaire, puis page par page : sur un CCTP réel de
+  523 000 caractères, le sommaire en fait 13 900.
+- Les gros documents sont lus une seule fois, par un sous-agent, qui écrit un index que
+  réutilisent toutes les étapes suivantes.
+- `remporte guide modeles` indique la puissance de modèle utile à chaque étape, et quand
+  confier une tâche à un modèle léger.
+
+## Confidentialité
+
+Le CLI s'exécute entièrement sur votre poste. Il ne crée aucun compte, **n'effectue aucun
+appel réseau** et ne mesure pas son usage. Vos DCE et vos documents restent dans les dossiers
+que vous choisissez. Le raisonnement est fait par votre agent, selon les conditions de son
+éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
+
+## Ce que le CLI ne fait pas
+
+- Remplir l'acte d'engagement et le bordereau de prix (BPU, DPGF, DQE) dans le fichier de
+  l'acheteur.
+- Mettre le mémoire dans le modèle Word de votre entreprise.
+- Donner les prix des marchés comparables déjà attribués.
+- Lire les PDF scannés et les anciens fichiers Word `.doc` : ils sont signalés dans
+  l'inventaire.
+- Chercher des appels d'offres : il part du DCE que vous avez déjà.
+
+Les trois premiers points sont ce que fait
+[Remporte](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=ne-fait-pas#aller-plus-loin).
+
+## Questions fréquentes
+
+**Faut-il un compte ou une clé d'API ?** Non. Le CLI fonctionne seul, avec l'abonnement de
+votre agent.
+
+**Quels agents ?** Claude Code (plugin, commandes et sous-agents), Codex, Gemini CLI, Pi, et
+tout agent qui sait lancer une commande et lire un fichier `AGENTS.md`.
+
+**Marchés privés ?** Oui pour l'analyse, le plan, la rédaction et la relecture. Les
+formulaires DC1, DC2 et DC4 ne concernent que la commande publique.
+
+**Quel modèle ?** Un modèle de milieu de gamme suffit pour lire et rédiger ; la relecture et
+le go/no-go gagnent à un modèle plus fort. Voir `remporte guide modeles`.
+
+## Contribuer
+
+Les signalements et propositions sont bienvenus dans les
+[issues](https://github.com/Remporte-dev/remporte-appels-offres/issues). Pour le code :
+
+```bash
+git clone https://github.com/Remporte-dev/remporte-appels-offres && cd remporte-appels-offres
+uv run pytest -q
+```
+
+Dépendances sous licences permissives uniquement (MIT, BSD, Apache).
+
+## In English
+
+**Remporte CLI** is an open-source command-line tool and Claude Code plugin that helps an AI
+agent (Claude Code, Codex, Gemini CLI, Pi) answer **French public procurement tenders**
+(*appels d'offres*, *marchés publics*): it reads the tender documents (DCE), extracts weighted
+award criteria and requirements, drafts the technical proposal (*mémoire technique*) section by
+section from your company documents, checks coverage of every numbered requirement, fills the
+official DC1/DC2/DC4 forms, and exports to Word, HTML and Excel. Everything runs locally; no
+account, no network calls. The method and outputs are in French.
 
 ## Licence
 
-MIT.
+[MIT](LICENSE). © Flowt (Remporte).

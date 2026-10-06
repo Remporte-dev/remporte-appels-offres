@@ -1,7 +1,22 @@
 {
   "name": "remporte",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Répondre à un appel d'offres public avec votre agent : lecture du DCE, analyse, go/no-go, plan, rédaction du mémoire technique, relecture, export.",
-  "author": { "name": "Remporte", "url": "https://remporte.fr" },
-  "license": "MIT"
+  "author": {
+    "name": "Remporte",
+    "url": "https://remporte.fr"
+  },
+  "license": "MIT",
+  "homepage": "https://remporte.fr/outils/agent-ia/",
+  "repository": "https://github.com/Remporte-dev/remporte-appels-offres",
+  "keywords": [
+    "appels d'offres",
+    "marchés publics",
+    "DCE",
+    "mémoire technique",
+    "DC1",
+    "DC2",
+    "DC4",
+    "public procurement"
+  ]
 }

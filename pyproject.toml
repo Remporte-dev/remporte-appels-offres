@@ -1,10 +1,11 @@
 [project]
 name = "remporte"
-version = "0.4.1"
-description = "Répondre à un appel d'offres avec votre agent IA : lecture du DCE, analyse, plan, rédaction, relecture, export."
+version = "0.4.2"
+description = "CLI et plugin Claude Code pour répondre aux appels d'offres publics avec votre agent IA : DCE, analyse, mémoire technique, DC1/DC2/DC4, exports."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+keywords = ["appels d'offres", "marchés publics", "DCE", "mémoire technique", "claude code", "codex", "agent IA", "public procurement"]
 dependencies = [
     "pypdfium2>=4.30",
     "python-docx>=1.1",
@@ -12,6 +13,11 @@ dependencies = [
     "odfpy>=1.4",
     "markdown>=3.6",
 ]
+
+[project.urls]
+Homepage = "https://remporte.fr/outils/agent-ia/"
+Source = "https://github.com/Remporte-dev/remporte-appels-offres"
+Issues = "https://github.com/Remporte-dev/remporte-appels-offres/issues"
 
 [project.scripts]
 remporte = "remporte.cli:main"
