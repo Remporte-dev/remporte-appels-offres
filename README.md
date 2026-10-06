@@ -1,5 +1,7 @@
 # Remporte CLI : répondre aux appels d'offres publics avec votre agent IA
 
+<p align="center"><img src="docs/remporte-cli.png" alt="Remporte CLI : le CLI appels d'offres pour votre agent IA, du DCE au mémoire technique, avec Claude Code, Codex ou Gemini CLI" width="100%"></p>
+
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-1d2b50)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-1d2b50)](pyproject.toml)
 [![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
