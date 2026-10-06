@@ -40,7 +40,7 @@ def indexer_dce(dossier: Path) -> int:
     racine_texte = dossier / ".remporte" / "texte"
     index = dossier / ".remporte" / "index.sqlite"
     index.parent.mkdir(parents=True, exist_ok=True)
-    fichiers = sorted(racine_texte.rglob("*.md")) if racine_texte.is_dir() else []
+    fichiers = sorted(racine_texte.rglob("*.md"), key=lambda p: p.as_posix()) if racine_texte.is_dir() else []
     connexion = sqlite3.connect(index)
     try:
         connexion.execute("DROP TABLE IF EXISTS passages")

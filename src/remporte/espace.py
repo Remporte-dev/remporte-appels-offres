@@ -256,7 +256,7 @@ def sections_plan(dossier: Path) -> list[dict]:
     for trouve in _RE_LIGNE_SECTION.finditer(texte):
         numero = trouve.group(2)
         titre = (trouve.group(3) or "").strip()
-        fichiers = sorted((dossier / "sections").glob(f"{numero}-*.md"))
+        fichiers = sorted((dossier / "sections").glob(f"{numero}-*.md"), key=lambda p: p.as_posix())
         fichier = fichiers[0] if fichiers else None
         faite = False
         if fichier is not None:

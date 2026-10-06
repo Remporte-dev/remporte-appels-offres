@@ -194,7 +194,7 @@ def couverture(dossier: Path, resultat: dict) -> list[dict] | None:
         return None
     sections = {
         fichier.name: fichier.read_text(encoding="utf-8", errors="replace")
-        for fichier in sorted((Path(dossier) / "sections").glob("*.md"))
+        for fichier in sorted((Path(dossier) / "sections").glob("*.md"), key=lambda p: p.as_posix())
     }
     entrees: list[dict] = []
     for point in resultat["points"]:

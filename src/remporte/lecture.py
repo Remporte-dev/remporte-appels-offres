@@ -82,7 +82,7 @@ def decompresser(source: Path, cible: Path) -> list[Path]:
 def lister_fichiers(base: Path) -> list[Path]:
     """Fichiers sous `base`, hors parasites, triés."""
     return [
-        p for p in sorted(Path(base).rglob("*"))
+        p for p in sorted(Path(base).rglob("*"), key=lambda p: p.as_posix())
         if p.is_file() and not _est_junk(p)
     ]
 
@@ -131,7 +131,7 @@ def _dezipper_recursif(base: Path) -> None:
     traites: set[Path] = set()
     while True:
         zips = [
-            p for p in sorted(base.rglob("*"))
+            p for p in sorted(base.rglob("*"), key=lambda p: p.as_posix())
             if p.is_file() and p.suffix.lower() == ".zip"
             and p.resolve() not in traites
         ]
