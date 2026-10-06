@@ -4,6 +4,10 @@
 
 Fichier à remplir : `02-analyse.md`.
 
+Si un sous-agent lecteur est disponible, c'est lui qui fait cette étape :
+il écrit d'abord `00-index.md` (pour chaque pièce, ce qu'elle contient et
+ses articles clés), puis l'analyse, en lisant aussi `remporte fiche`.
+
 ## Ordre de lecture
 
 1. **Le RC d'abord**, en entier (`remporte lire rc`). Il dit comment l'offre

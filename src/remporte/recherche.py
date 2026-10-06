@@ -95,10 +95,24 @@ def indexer_base(source: Path, base: Path) -> int:
                     (relatif.as_posix(), passage),
                 )
                 total += 1
+        fiche = chemin_fiche(base)
+        if fiche.exists():
+            for passage in decouper_passages(fiche.read_text(encoding="utf-8")):
+                connexion.execute(
+                    "INSERT INTO passages (piece, passage) VALUES (?, ?)",
+                    (fiche.name, passage),
+                )
+                total += 1
         connexion.commit()
     finally:
         connexion.close()
     return total
+
+
+def chemin_fiche(base: Path | None = None) -> Path:
+    """Fiche entreprise, rangée avec la base : lue en entier par les agents,
+    et indexée avec les documents pour `remporte base chercher`."""
+    return Path(base or chemin_base()) / "fiche-entreprise.md"
 
 
 def chercher_base(base: Path, requete: str, limite: int = 10) -> list[dict]:

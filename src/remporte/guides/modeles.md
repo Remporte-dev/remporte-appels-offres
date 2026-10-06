@@ -19,6 +19,12 @@ sur le go/no-go ou la rédaction donne une réponse faible.
 
 ## Si ton agent sait lancer des sous-agents
 
+Avec le plugin Claude Code, trois sous-agents sont fournis :
+`remporte:lecteur-dce` (index et analyse, modèle intermédiaire),
+`remporte:redacteur-section` (une section, modèle intermédiaire) et
+`remporte:relecteur` (relecture, ton modèle principal). Pour un autre agent,
+reprends le même découpage :
+
 - **Exploration** : confie à un sous-agent léger la lecture d'une pièce longue
   avec une question précise (« relève toutes les exigences de délais du CCTP,
   avec leur article »). Il rend une liste courte ; toi, tu gardes ton contexte

@@ -13,6 +13,7 @@ import re
 import sys
 from pathlib import Path
 
+from remporte import __version__
 from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
 )
@@ -56,6 +57,8 @@ def _construire_parser() -> argparse.ArgumentParser:
         description="Répondre à un appel d'offres publics avec votre agent IA : "
                     "lecture du DCE, analyse, plan, rédaction, export.",
     )
+    parser.add_argument("--version", action="version",
+                        version=f"remporte {__version__}")
     sous = parser.add_subparsers(dest="commande", metavar="commande")
 
     p = sous.add_parser(
@@ -152,6 +155,12 @@ def _construire_parser() -> argparse.ArgumentParser:
         help="formats parmi docx,html,analyse,feuille,matrice (défaut : tous)",
     )
     p.set_defaults(func=_cmd_exporter)
+
+    p = sous.add_parser("fiche", parents=[communes],
+                        help="fiche entreprise lue par les agents (créée par /remporte:init)")
+    p.add_argument("--creer", action="store_true",
+                   help="créer la fiche depuis le gabarit si elle n'existe pas")
+    p.set_defaults(func=_cmd_fiche)
 
     p = sous.add_parser("html", parents=[communes],
                         help="mettre un fichier markdown en page HTML (charte Remporte)")
@@ -689,6 +698,26 @@ def _cmd_guide(args) -> int:
         )
         return 1
     print(contenu.rstrip())
+    return 0
+
+
+def _cmd_fiche(args) -> int:
+    fiche = recherche.chemin_fiche()
+    if args.creer and not fiche.exists():
+        fiche.parent.mkdir(parents=True, exist_ok=True)
+        fiche.write_text(_lire_ressource("gabarits", "fiche-entreprise.md"), encoding="utf-8")
+        print(f"Fiche créée : {fiche}")
+        return 0
+    if not fiche.exists():
+        print(f"Pas encore de fiche entreprise ({fiche}). Lancez /remporte:init, "
+              "ou `remporte fiche --creer`.")
+        return 1
+    texte = fiche.read_text(encoding="utf-8")
+    if args.json:
+        _sortie_json({"chemin": str(fiche), "texte": texte})
+    else:
+        print(f"<!-- {fiche} -->")
+        print(texte.rstrip())
     return 0
 
 

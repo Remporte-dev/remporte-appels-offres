@@ -267,3 +267,23 @@ def test_lire_piece_longue_rend_le_sommaire(tmp_path, capsys):
     assert len(sommaire) < 5000
     assert cli.main(["lire", "cctp", "--tout", "--dossier", str(dossier)]) == 0
     assert len(capsys.readouterr().out) > 30_000
+
+
+def test_fiche_entreprise(tmp_path, monkeypatch, capsys):
+    """La fiche se crée depuis le gabarit, s'affiche, et entre dans l'index de la base."""
+    from remporte import cli, recherche
+
+    base = tmp_path / "base"
+    monkeypatch.setenv("REMPORTE_BASE", str(base))
+    assert cli.main(["fiche"]) == 1
+    assert cli.main(["fiche", "--creer"]) == 0
+    fiche = base / "fiche-entreprise.md"
+    fiche.write_text("# Fiche entreprise\n\nSIRET : 000 000 000 00000 (fictif)\n", encoding="utf-8")
+    capsys.readouterr()
+    assert cli.main(["fiche"]) == 0 and "SIRET" in capsys.readouterr().out
+    documents = tmp_path / "documents"
+    documents.mkdir()
+    (documents / "references.md").write_text("Référence fictive.\n", encoding="utf-8")
+    recherche.indexer_base(documents, base)
+    resultats = recherche.chercher_base(base, "SIRET")
+    assert resultats and resultats[0]["piece"] == "fiche-entreprise.md"

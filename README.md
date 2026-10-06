@@ -72,6 +72,7 @@ remporte candidature preparer    créer candidature/valeurs.json (DC1/DC2/DC4)
 remporte candidature remplir     écrire les formulaires officiels renseignés
 remporte base indexer <dossier>  indexer les documents de l'entreprise
 remporte base chercher "<t>"     recherche dans ces documents
+remporte fiche [--creer]         fiche entreprise lue par tous les agents
 remporte exporter                mémoire Word, analyse et feuille de route HTML,
                                  matrice de conformité Excel
 remporte html <fichier.md>       mettre n'importe quel markdown en page HTML
@@ -91,8 +92,25 @@ une lecture à un sous-agent léger. La base de l'entreprise est rangée dans
 
 ## Avec Claude Code
 
-Le dépôt est aussi un plugin Claude Code : il apporte la skill
-`repondre-ao`, qui déclenche le parcours dès que vous parlez d'un DCE.
+Le dépôt est aussi un plugin Claude Code :
+
+```
+/plugin marketplace add Remporte-dev/remporte
+/plugin install remporte@remporte
+```
+
+Puis deux commandes suffisent :
+
+- **`/remporte:init`**, une fois par poste : vérifie l'outil, indexe vos
+  documents et construit la fiche entreprise que liront tous les agents ;
+- **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le
+  dossier de réponse et conduit le parcours avec vous, avec trois arrêts de
+  validation (analyse, go/no-go, plan).
+
+Le plugin fournit trois sous-agents, pour lire une fois et rédiger en
+parallèle sans épuiser l'abonnement : `lecteur-dce` (index et analyse du
+DCE), `redacteur-section` (une section du mémoire) et `relecteur` (relecture
+avec la grille de l'acheteur, par un agent qui n'a rien écrit).
 
 ## Ce que l'outil ne fait pas
 
