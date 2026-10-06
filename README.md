@@ -2,6 +2,8 @@
 
 **Répondre à un appel d'offres public avec votre agent IA.**
 
+Un outil gratuit et open source de [Remporte](https://remporte.fr/produit?utm_source=github&utm_medium=readme&utm_content=entete), le logiciel de réponse aux appels d'offres.
+
 `remporte` est un outil en ligne de commande, gratuit et open source, qui
 donne à votre agent (Claude Code, Codex, Gemini CLI, Pi, ou tout agent qui
 sait lancer une commande) ce qu'il faut pour répondre à un marché public :
@@ -129,7 +131,7 @@ avec la grille de l'acheteur, par un agent qui n'a rien écrit).
 Remplir l'acte d'engagement et le bordereau de prix (BPU, DPGF, DQE) dans le
 format de l'acheteur, mettre le mémoire dans votre modèle Word, donner les
 prix des marchés comparables déjà attribués : c'est ce que fait
-[Remporte](https://remporte.fr).
+[Remporte](https://remporte.fr/produit?utm_source=github&utm_medium=readme&utm_content=ne-fait-pas).
 
 Les PDF scannés et les anciens fichiers Word `.doc` ne sont pas lus : ils sont
 signalés dans l'inventaire.

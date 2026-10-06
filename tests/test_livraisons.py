@@ -100,7 +100,7 @@ def test_analyse_html(dossier_pret: Path):
     assert "<strong>Go.</strong>" in page  # verdict
     assert "Méthode :" not in page  # notes de travail du gabarit retirées
     assert "<style>" in page and "</html>" in page  # page autonome complète
-    assert "http://" not in page and "https://" not in page  # zéro ressource
+    assert _aucune_ressource_externe(page)
     assert "Préparé avec remporte" in page
 
 
@@ -118,7 +118,7 @@ def test_feuille_de_route_html(dossier_pret: Path):
     assert "références comparables" in page  # à compléter
     assert "03-go-no-go.md" in page  # regroupement par fichier
     assert "DC1 et DC2" in page  # pièces à remettre
-    assert "http://" not in page and "https://" not in page
+    assert _aucune_ressource_externe(page)
 
 
 def test_matrice_exigences_crt(dossier_pret: Path, monkeypatch):
@@ -226,4 +226,11 @@ def test_commande_html(tmp_path):
     assert cli.main(["html", str(source)]) == 0
     page = (tmp_path / "note.html").read_text(encoding="utf-8")
     assert "<title>Note de synthèse</title>" in page and "<td>40 %</td>" in page
-    assert "#1d2b50" in page and "http" not in page.replace("remporte.fr", "")
+    assert "#1d2b50" in page and _aucune_ressource_externe(page)
+    assert "utm_content=page-html" in page  # lien d'information vers le site
+
+
+def _aucune_ressource_externe(page: str) -> bool:
+    """Page autonome : aucune image, feuille de style ou script chargé du réseau.
+    Un lien cliquable vers le site Remporte est permis."""
+    return not any(motif in page for motif in ('src="http', "<link", "url(http", "@import"))

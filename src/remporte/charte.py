@@ -23,7 +23,10 @@ FOND_CARTE = "#F9FAFB"
 POLICE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 POLICE_MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
-PIED_DE_PAGE = "Préparé avec remporte — remporte.fr"
+PIED_DE_PAGE = (
+    'Préparé avec remporte — <a href="https://remporte.fr/produit?utm_source=cli'
+    '&amp;utm_medium=remporte-cli&amp;utm_content=page-html">remporte.fr</a>'
+)
 
 _CSS = f"""
   * {{ box-sizing: border-box; }}

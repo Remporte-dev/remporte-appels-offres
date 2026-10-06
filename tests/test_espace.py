@@ -75,8 +75,9 @@ def test_01_pieces_contenu(tmp_path: Path, source_dce: Path):
     assert "| RC |" in inventaire_md
     assert "PDF probablement scanné" in inventaire_md
     assert "CRT (cahier des réponses) absent" in inventaire_md
-    assert ("Remplissage de cette pièce dans le format de l'acheteur : "
-            "disponible avec Remporte (remporte.fr).") in inventaire_md
+    assert "remplissage de cette pièce dans le format de l'acheteur" in inventaire_md
+    assert "remporte.fr/produit?utm_source=cli" in inventaire_md
+    assert "utm_content=piece-" in inventaire_md  # provenance mesurable par pièce
     assert espace.MARQUEUR not in inventaire_md  # étape « pieces » sans marqueur
 
 

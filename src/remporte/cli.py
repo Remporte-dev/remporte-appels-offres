@@ -16,7 +16,7 @@ from pathlib import Path
 from remporte import __version__
 from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
-    travail,
+    lien, travail,
 )
 
 
@@ -278,6 +278,10 @@ def _cmd_init(args) -> int:
     print(f"Pièces : {len(pieces)} ({lues} converties)")
     for message in inventaire.pieces_attendues_absentes({p["type"] for p in pieces}):
         print(f"  ! {message}")
+    a_remplir = sorted({p["type"] for p in pieces} & espace.PIECES_REMPLISSABLES)
+    if a_remplir:
+        print(f"  Pièces à remplir dans le format de l'acheteur ({', '.join(a_remplir)}) : "
+              f"disponible avec Remporte, {lien.site('init')}")
     print("Suite : remporte etat")
     return 0
 
@@ -788,6 +792,8 @@ def _cmd_exporter(args) -> int:
         return 0
     for format_, chemin in resultat.items():
         print(f"{format_} : {chemin}" if chemin else f"{format_} : non produit")
+    print("Mémoire dans votre modèle Word, prix reportés dans le bordereau de "
+          f"l'acheteur : disponible avec Remporte, {lien.site('export')}")
     return 0
 
 

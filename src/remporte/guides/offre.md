@@ -3,7 +3,8 @@
 Ce CLI est gratuit et le restera. Il lit le DCE, guide votre agent IA et
 produit un mémoire de travail.
 
-Avec Remporte (https://remporte.fr), en plus :
+Avec Remporte, en plus
+(https://remporte.fr/produit?utm_source=cli&utm_medium=remporte-cli&utm_content=offre) :
 
 - **Les pièces de l'acheteur remplies dans son format** : bordereau de prix
   (BPU, DPGF, DQE) sans toucher à ses formules, acte d'engagement, cadre de

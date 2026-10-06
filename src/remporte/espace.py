@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from remporte import formats, inventaire, recherche
+from remporte import formats, inventaire, lien, recherche
 from remporte.lecture import convertir, decompresser
 
 ETAPES = ["pieces", "analyse", "go-no-go", "plan", "redaction", "relecture",
@@ -150,9 +150,9 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
         lignes += ["", "## Pièces à remplir dans le format de l'acheteur", ""]
         for piece in remplissables:
             lignes.append(
-                f"- `dce/{piece['chemin']}` ({piece['type']}) : Remplissage de "
-                "cette pièce dans le format de l'acheteur : disponible avec "
-                "Remporte (remporte.fr)."
+                f"- `dce/{piece['chemin']}` ({piece['type']}) : remplissage de "
+                "cette pièce dans le format de l'acheteur, sans toucher à ses "
+                f"formules : disponible avec Remporte, {lien.site('piece-' + piece['type'].lower())}"
             )
     (dossier / "01-pieces.md").write_text(
         "\n".join(lignes) + "\n", encoding="utf-8"
