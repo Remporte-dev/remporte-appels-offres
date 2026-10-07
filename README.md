@@ -44,6 +44,8 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 
 ## Installation
 
+Les [paquets 0.6.0 par plateforme](releases/v0.6.0/) sont disponibles en téléchargement direct. Le CLI 0.6.0 peut aussi être installé depuis le fichier Python indiqué dans ce dossier, en attendant sa publication sur PyPI.
+
 ```bash
 uv tool install remporte
 # ou : pipx install remporte
