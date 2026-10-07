@@ -56,7 +56,9 @@ macOS, Linux et Windows ; signalez-nous tout problème.
 
 ### Avec Claude Code
 
-Le dépôt est aussi un plugin Claude Code :
+Le dépôt contient aussi un plugin Claude Code (dossier [`plugin/`](https://github.com/Remporte-dev/remporte-appels-offres/tree/main/plugin)). Il fonctionne
+dans Claude Code et dans Cowork, sur votre ordinateur, pas dans une conversation sur claude.ai :
+il a besoin d'un terminal pour lancer l'outil.
 
 ```
 /plugin marketplace add Remporte-dev/remporte-appels-offres
@@ -69,6 +71,15 @@ Puis deux commandes :
   votre entreprise et construit la fiche entreprise que liront tous les agents ;
 - **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le dossier et conduit
   le parcours avec vous, avec trois arrêts de validation (analyse, go/no-go, plan).
+
+Exemples de demandes :
+
+- `/remporte:init` : crée votre espace de travail et construit la fiche entreprise à partir de
+  vos références, CV et certifications ;
+- `/remporte:nouvel-ao ~/Téléchargements/DCE-voirie.zip` : lit le DCE, prépare l'analyse, le
+  go/no-go et le plan du mémoire ;
+- « Vérifie que chaque exigence du cadre de réponse est traitée dans le mémoire » ;
+- « Remplis le DC1 et le DC2 pour ce marché ».
 
 Le plugin fournit trois sous-agents, pour lire une fois et rédiger en parallèle sans épuiser
 l'abonnement :
@@ -171,6 +182,10 @@ appel réseau** et ne mesure pas son usage. Vos DCE et vos documents restent dan
 que vous choisissez. Le raisonnement est fait par votre agent, selon les conditions de son
 éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
 
+**Ce que le plugin Claude Code exécute** : l'outil `remporte` sur votre poste, et rien d'autre.
+Si l'outil est absent, `/remporte:init` propose de l'installer (`uv tool install remporte`,
+depuis PyPI) et attend votre accord. Le plugin ne contient ni hook ni serveur MCP.
+
 ## Ce que le CLI ne fait pas
 
 - Remplir l'acte d'engagement et le bordereau de prix (BPU, DPGF, DQE) dans le fichier de
@@ -207,6 +222,9 @@ Les signalements et propositions sont bienvenus dans les
 git clone https://github.com/Remporte-dev/remporte-appels-offres && cd remporte-appels-offres
 uv run pytest -q
 ```
+
+Le CLI est dans `src/remporte/`, le plugin Claude Code (skills, sous-agents, manifeste) dans
+`plugin/`.
 
 Dépendances sous licences permissives uniquement (MIT, BSD, Apache).
 

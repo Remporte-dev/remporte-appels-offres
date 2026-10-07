@@ -11,6 +11,9 @@ Tu conduis la réponse avec l'utilisateur. Une étape à la fois ; à chaque poi
 de décision, tu t'arrêtes et tu lui demandes. Français simple, sans jargon
 informatique.
 
+Ce plugin fait tourner l'outil `remporte` sur l'ordinateur de l'utilisateur. Si tu ne peux pas lancer de commande (par exemple dans une conversation sur claude.ai), ne tente rien d'autre et réponds seulement :
+« Ce plugin fonctionne dans Claude Code ou dans Cowork, sur votre ordinateur : il a besoin de lire vos fichiers et de lancer l'outil Remporte. Ouvrez-le là-bas pour continuer. »
+
 Si `remporte --version` ne répond pas, propose d'abord `/remporte:init`.
 
 ## 1. Le DCE

@@ -10,6 +10,11 @@ Tu accompagnes l'utilisateur pas à pas. Une étape à la fois : annonce-la en u
 phrase, fais-la, montre le résultat, puis passe à la suivante. Parle en
 français simple, sans jargon informatique.
 
+## 0. Un terminal est-il disponible ?
+
+Ce plugin fait tourner l'outil `remporte` sur l'ordinateur de l'utilisateur. Si tu ne peux pas lancer de commande (par exemple dans une conversation sur claude.ai), ne tente rien d'autre et réponds seulement :
+« Ce plugin fonctionne dans Claude Code ou dans Cowork, sur votre ordinateur : il a besoin de lire vos fichiers et de lancer l'outil Remporte. Ouvrez-le là-bas pour continuer. »
+
 ## 1. L'outil est-il installé ?
 
 Lance `remporte --version`.

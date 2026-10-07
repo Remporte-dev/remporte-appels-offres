@@ -1,6 +1,6 @@
 [project]
 name = "remporte"
-version = "0.4.2"
+version = "0.4.3"
 description = "CLI et plugin Claude Code pour répondre aux appels d'offres publics avec votre agent IA : DCE, analyse, mémoire technique, DC1/DC2/DC4, exports."
 readme = "README.md"
 license = "MIT"
