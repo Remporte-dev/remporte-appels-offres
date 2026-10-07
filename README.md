@@ -44,7 +44,7 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 
 ## Installation
 
-Les [paquets 0.6.0 par plateforme](releases/v0.6.0/) sont disponibles en téléchargement direct. Le CLI 0.6.0 peut aussi être installé depuis le fichier Python indiqué dans ce dossier, en attendant sa publication sur PyPI.
+La [release 0.6.0](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v0.6.0) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v0.6.0/) restent aussi disponibles.
 
 ```bash
 uv tool install remporte
