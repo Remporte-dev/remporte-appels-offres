@@ -53,29 +53,29 @@ codex plugin add remporte@remporte
 Rouvrez Codex dans `~/Remporte`. Dans sa conversation, utilisez `$remporte:init`, puis `$remporte:nouvel-ao /chemin/vers/DCE.zip`. Ces mentions de compétences ne sont pas des commandes à exécuter dans le terminal.
 
 ## Mettre à jour une installation existante
-+
-+La commande `uv tool install --upgrade remporte` installe ou met à jour le CLI en rafraîchissant le cache de versions.
-+
-+Pour Claude Code, dans le terminal :
-+
-+```bash
-+claude plugin marketplace update remporte
-+claude plugin update remporte@remporte --scope user
-+```
-+
-+Si le plugin était installé pour un projet seulement, lancez la mise à jour depuis ce projet avec son périmètre `project` ou `local` plutôt que `user`.
-+
-+Pour Codex, rafraîchissez d’abord le catalogue, puis réinstallez le plugin :
-+
-+```bash
-+codex plugin marketplace upgrade remporte
-+codex plugin remove remporte@remporte
-+codex plugin add remporte@remporte
-+```
-+
-+Rouvrez l’agent après la mise à jour. Les dossiers d’entreprise et de réponse restent dans votre espace de travail. Pour les compétences portables, sauvegardez les anciens dossiers `remporte-*` avant de les retirer du dossier de compétences et d’installer la nouvelle archive : le script d’installation refuse de les écraser.
-+
-+## Gemini CLI
+
+La commande `uv tool install --upgrade remporte` installe ou met à jour le CLI en rafraîchissant le cache de versions.
+
+Pour Claude Code, dans le terminal :
+
+```bash
+claude plugin marketplace update remporte
+claude plugin update remporte@remporte --scope user
+```
+
+Si le plugin était installé pour un projet seulement, lancez la mise à jour depuis ce projet avec son périmètre `project` ou `local` plutôt que `user`.
+
+Pour Codex, rafraîchissez d’abord le catalogue, puis réinstallez le plugin :
+
+```bash
+codex plugin marketplace upgrade remporte
+codex plugin remove remporte@remporte
+codex plugin add remporte@remporte
+```
+
+Rouvrez l’agent après la mise à jour. Les dossiers d’entreprise et de réponse restent dans votre espace de travail. Pour les compétences portables, sauvegardez les anciens dossiers `remporte-*` avant de les retirer du dossier de compétences et d’installer la nouvelle archive : le script d’installation refuse de les écraser.
+
+## Gemini CLI
 
 Décompressez l'archive Gemini, puis installez le dossier `remporte/` qui contient le manifeste :
 
@@ -99,7 +99,16 @@ python3 install_skills.py --source ./skills --destination ~/.hermes/skills
 
 Ajoutez `--apply` pour installer. Le script refuse les compétences déjà présentes et les liens symboliques. Il ne modifie pas les réglages de l'agent. Pour un profil ou un dossier de travail spécifique, indiquez son dossier de compétences documenté à la place de ces destinations par défaut. Rechargez les compétences ou ouvrez une nouvelle session. Vérifiez leur présence avec `hermes skills list --source local`, `openclaw skills list` ou le catalogue de compétences de Pi. Si l’agent indique qu’aucun modèle n’est connecté, terminez sa connexion avant de demander une analyse.
 
-Avec Hermes, utilisez `/remporte-init`, puis `/remporte-nouvel-ao <DCE>`. Avec OpenClaw, vérifiez leur découverte avec `openclaw skills check`, puis demandez la compétence par son nom. Avec Pi, vous pouvez aussi charger explicitement les compétences sans installation globale :
+Avec Hermes, utilisez `/remporte-init`, puis `/remporte-nouvel-ao <DCE>`. Avec OpenClaw, vérifiez leur découverte avec `openclaw skills check`, puis demandez la compétence par son nom.
+
+Pour OpenClaw, choisissez comme espace de travail le dossier Remporte qui contient à la fois `ressources/` et `DCEs/`. Si vous ouvrez seulement un sous-dossier de réponse, l’accès aux documents d’entreprise peut être bloqué par la limite de cet espace. Exemple depuis le terminal, une fois le modèle connecté :
+
+```bash
+openclaw agent exec --cwd "$HOME/Remporte" \
+  "Utilise remporte-nouvel-ao avec /chemin/vers/DCE.zip"
+```
+
+Adaptez ce chemin si votre espace Remporte porte un autre nom. Avec Pi, vous pouvez aussi charger explicitement les compétences sans installation globale :
 
 ```bash
 pi --skill /chemin/vers/remporte/skills
@@ -138,6 +147,8 @@ Les scripts refusent d'écraser une archive existante. Les paquets cloud refusen
 
 ## Vérifications et limites
 
-Les tests contrôlent les formats, les six noms de compétences, les références après copie isolée, les conflits d'installation et la cohérence entre CLI et compétences. Le plugin Claude et le plugin Codex ont aussi été chargés par leurs outils locaux de lecture. L'exécution réelle dans Gemini, Hermes, OpenClaw, Muse et ChatGPT Work demande une session de ces plateformes ; une archive conforme n'est pas la preuve d'un parcours complet dans un compte utilisateur.
+Les tests contrôlent les formats, les six noms de compétences, les références après copie isolée, les conflits d’installation et la cohérence entre CLI et compétences. Sur macOS, Claude Code, Codex, Pi, Hermes et OpenClaw ont aussi exécuté une analyse de DCE factice avec les compétences Remporte : lecture de pièces Word et Excel, production de l’index et de l’analyse, puis arrêt avant la décision de répondre. Hermes et OpenClaw ont été testés avec GLM-5.3 Flash. Ces essais ne couvrent pas encore la rédaction complète ni l’export du mémoire.
+
+Gemini CLI a chargé les six compétences après désinstallation et réinstallation ; l’analyse reste à tester avec une connexion Google valide. Muse et ChatGPT Work dans le cloud n’ont pas été testés en session réelle.
 
 Sources des formats : [Gemini extensions](https://geminicli.com/docs/extensions/reference/), [contexte Gemini](https://geminicli.com/docs/cli/gemini-md/), [Hermes Skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills/), [OpenClaw Skills](https://docs.openclaw.ai/tools/skills), [Muse et son environnement cloud](https://research.meta.ai/blog/security-and-safety-for-ai-agents-our-approach-with-muse), [connecteurs Muse](https://muse.ai/platform/docs), [Pi Skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md).
