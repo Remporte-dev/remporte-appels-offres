@@ -16,6 +16,42 @@ La version 0.6.0 utilise la même méthode pour toutes les plateformes. Les arch
 
 Les commandes et les documents doivent être accessibles dans l'environnement de l'agent. L'installation des compétences seule n'installe pas le CLI. Chaque compétence portable contient ses références : on peut la copier séparément.
 
+## Préparer le poste et les documents
+
+Installez et connectez votre agent à un modèle avec sa procédure officielle. Les compétences Remporte ne créent pas cette connexion : sans abonnement ou clé utilisable dans cet agent, elles sont visibles mais ne peuvent pas effectuer l’analyse.
+
+Installez [uv](https://docs.astral.sh/uv/getting-started/installation/) si nécessaire, puis lancez dans le terminal :
+
+```bash
+uv tool install remporte
+remporte espace ~/Remporte
+cd ~/Remporte
+```
+
+Ajoutez vos documents d’entreprise dans `ressources/` et complétez `ressources/fiche-entreprise.md`, créée par la commande précédente. Depuis `~/Remporte`, lancez `remporte base indexer`. Rouvrez ensuite votre agent dans cet espace. Les nouveaux DCE y sont rangés dans `DCEs/` et retrouvent la base de l’entreprise.
+
+Téléchargez l’archive de votre plateforme dans [la release Remporte](https://github.com/Remporte-dev/remporte-appels-offres/releases/latest). Pour la version 0.6.0 : `remporte-gemini-0.6.0.zip`, `remporte-hermes-0.6.0.zip`, `remporte-openclaw-0.6.0.zip` ou `remporte-pi-0.6.0.zip`. Décompressez-la dans un nouveau dossier avant de suivre les instructions ci-dessous.
+
+## Claude Code et Codex
+
+Claude Code : dans sa conversation, ajoutez le catalogue et installez le plugin.
+
+```text
+/plugin marketplace add Remporte-dev/remporte-appels-offres
+/plugin install remporte@remporte
+```
+
+Rouvrez Claude Code dans `~/Remporte`, puis utilisez `/remporte:init` et `/remporte:nouvel-ao /chemin/vers/DCE.zip`.
+
+Codex : dans le terminal, installez le plugin natif.
+
+```bash
+codex plugin marketplace add Remporte-dev/remporte-appels-offres
+codex plugin add remporte@remporte
+```
+
+Rouvrez Codex dans `~/Remporte`. Dans sa conversation, utilisez `$remporte:init`, puis `$remporte:nouvel-ao /chemin/vers/DCE.zip`. Ces mentions de compétences ne sont pas des commandes à exécuter dans le terminal.
+
 ## Gemini CLI
 
 Décompressez l'archive Gemini, puis installez le dossier `remporte/` qui contient le manifeste :
@@ -38,7 +74,7 @@ python3 install_skills.py --source ./skills --destination ~/.hermes/skills
 # Pi : --destination ~/.pi/agent/skills
 ```
 
-Ajoutez `--apply` pour installer. Le script refuse les compétences déjà présentes et les liens symboliques. Il ne modifie pas les réglages de l'agent. Pour un profil ou un dossier de travail spécifique, indiquez son dossier de compétences documenté à la place de ces destinations par défaut. Rechargez les compétences ou ouvrez une nouvelle session.
+Ajoutez `--apply` pour installer. Le script refuse les compétences déjà présentes et les liens symboliques. Il ne modifie pas les réglages de l'agent. Pour un profil ou un dossier de travail spécifique, indiquez son dossier de compétences documenté à la place de ces destinations par défaut. Rechargez les compétences ou ouvrez une nouvelle session. Vérifiez leur présence avec `hermes skills list --source local`, `openclaw skills list` ou le catalogue de compétences de Pi. Si l’agent indique qu’aucun modèle n’est connecté, terminez sa connexion avant de demander une analyse.
 
 Avec Hermes, utilisez `/remporte-init`, puis `/remporte-nouvel-ao <DCE>`. Avec OpenClaw, vérifiez leur découverte avec `openclaw skills check`, puis demandez la compétence par son nom. Avec Pi, vous pouvez aussi charger explicitement les compétences sans installation globale :
 
