@@ -9,7 +9,7 @@
 [![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
 [![Codex, Gemini CLI, Pi](https://img.shields.io/badge/agents-Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Pi-c2410c)](#avec-codex-gemini-cli-pi-ou-un-autre-agent)
 
-**Un CLI et un plugin pour Claude Code, Codex et ChatGPT Work, gratuits et open source, pour répondre à un marché
+**Un CLI et des intégrations pour Claude Code, Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse et Pi, gratuits et open source, pour répondre à un marché
 public français avec votre agent IA** : lecture du DCE, analyse, go/no-go, plan du mémoire
 technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4 et exports
 Word, HTML et Excel.
@@ -110,7 +110,11 @@ ChatGPT Work doit disposer des commandes et des fichiers nécessaires. Vérifiez
 l'outil. Un environnement cloud ne voit que les fichiers qui y sont fournis. Une conversation
 sans accès aux commandes ne peut pas exécuter ce parcours.
 
-### Avec Gemini CLI, Pi ou un autre agent
+### Avec Gemini CLI, Hermes, OpenClaw, Muse, Pi ou un autre agent
+
+Des archives dédiées sont disponibles : extension Gemini, compétences autonomes pour Hermes/OpenClaw/Pi, et paquet cloud pour Muse ou ChatGPT Work. Consultez le [guide d’installation par plateforme](docs/integrations.md) pour les commandes et les limites de chaque environnement.
+
+### Avec un agent sans installation de compétences
 
 Tout agent qui peut lancer des commandes et lire/écrire les fichiers concernés peut s’en servir :
 
@@ -123,7 +127,7 @@ cd DCEs/DCE && codex                        # ou claude, gemini, pi…
 ```
 
 Chaque dossier contient un `AGENTS.md` (et
-un `CLAUDE.md`) qui donne la marche à suivre à l'agent.
+un `CLAUDE.md` et un `GEMINI.md`) qui donne la marche à suivre à l'agent.
 
 ## Comment ça marche
 
@@ -218,7 +222,7 @@ Les trois premiers points sont ce que fait
 **Faut-il un compte ou une clé d'API ?** Non. Le CLI fonctionne seul, avec l'abonnement de
 votre agent.
 
-**Quels agents ?** Claude Code (plugin, commandes et sous-agents), Codex, Gemini CLI, Pi, et
+**Quels agents ?** Claude Code (plugin, commandes et sous-agents), Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse, Pi, et
 tout agent qui sait lancer une commande et lire un fichier `AGENTS.md`.
 
 **Marchés privés ?** Oui pour l'analyse, le plan, la rédaction et la relecture. Les
@@ -242,7 +246,9 @@ procédures dans `references/`, les agents Claude dans `agents/`, et les manifes
 Claude et OpenAI. La méthode métier a une seule source ; chaque plateforme dispose de ses
 points d'entrée et de ses métadonnées.
 
-Pour produire les deux archives à partir de cette source :
+Les [autres formats et paquets cloud](docs/integrations.md) sont générés depuis cette même source.
+
+Pour produire les deux archives natives Claude/OpenAI :
 
 ```bash
 uv run python scripts/package_plugin.py --platform claude --output dist/remporte-claude.zip

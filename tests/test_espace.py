@@ -30,11 +30,12 @@ def test_initialiser_arborescence(tmp_path: Path, source_dce: Path):
     dossier = tmp_path / "reponse"
     donnees = espace.initialiser(source_dce, dossier)
     for chemin in ("dce", "sections", "export", ".remporte/texte",
-                   "AGENTS.md", "CLAUDE.md", "02-analyse.md", "03-go-no-go.md",
+                   "AGENTS.md", "CLAUDE.md", "GEMINI.md", "02-analyse.md", "03-go-no-go.md",
                    "04-plan.md", "05-relecture.md", "01-pieces.md",
                    ".remporte/etat.json", ".remporte/index.sqlite"):
         assert (dossier / chemin).exists(), chemin
     assert (dossier / "CLAUDE.md").read_text(encoding="utf-8").strip() == "@AGENTS.md"
+    assert (dossier / "GEMINI.md").read_text(encoding="utf-8").strip() == "@./AGENTS.md"
     par_nom = {p["chemin"]: p for p in donnees["pieces"]}
     assert par_nom["1-RC.docx"]["type"] == "RC"
     assert par_nom["2-BPU.xlsx"]["type"] == "BPU"

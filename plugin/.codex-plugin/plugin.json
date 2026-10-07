@@ -1,6 +1,6 @@
 {
   "name": "remporte",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Répondre à un appel d'offres public avec votre agent : lecture du DCE, analyse, go/no-go, plan, rédaction du mémoire technique, relecture, export.",
   "author": {
     "name": "Remporte",

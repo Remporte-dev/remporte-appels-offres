@@ -41,6 +41,7 @@ def creer_espace(racine: Path) -> dict:
         MARQUEUR: "Espace de travail remporte. Ne pas supprimer.\n",
         "AGENTS.md": _gabarit("AGENTS-espace.md"),
         "CLAUDE.md": "@AGENTS.md\n",
+        "GEMINI.md": "@./AGENTS.md\n",
         f"{RESSOURCES}/fiche-entreprise.md": _gabarit("fiche-entreprise.md"),
     }
     for relatif, contenu in fichiers.items():

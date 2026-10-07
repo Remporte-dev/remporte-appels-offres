@@ -1,7 +1,7 @@
 [project]
 name = "remporte"
-version = "0.5.0"
-description = "CLI et plugin Claude Code pour répondre aux appels d'offres publics avec votre agent IA : DCE, analyse, mémoire technique, DC1/DC2/DC4, exports."
+version = "0.6.0"
+description = "CLI et intégrations multi-agents pour répondre aux appels d'offres publics avec votre agent IA : DCE, analyse, mémoire technique, DC1/DC2/DC4, exports."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
