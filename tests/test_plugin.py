@@ -45,3 +45,22 @@ def test_readme_du_plugin():
     exemples = texte.split("## Exemples", 1)[1].split("\n## ", 1)[0]
     assert exemples.count("\n- ") >= 3
     assert (PLUGIN / "LICENSE").read_text(encoding="utf-8") == (RACINE / "LICENSE").read_text(encoding="utf-8")
+
+
+def test_guides_cites_existent():
+    """Chaque `remporte guide <nom>` cité par une skill ou un guide existe."""
+    import re
+
+    from remporte import cli, espace
+
+    connus = set(espace.ETAPES) | set(cli.GUIDES_ANNEXES)
+    racine = Path(__file__).resolve().parent.parent
+    textes = [*(racine / "plugin").rglob("*.md"), *(racine / "src/remporte/guides").glob("*.md")]
+    cites = {
+        nom
+        for chemin in textes
+        for nom in re.findall(r"remporte guide ([a-z][a-z-]*)", chemin.read_text(encoding="utf-8"))
+    }
+    assert cites - connus == set()
+    for nom in connus:
+        assert (racine / "src/remporte/guides" / f"{nom}.md").exists() or nom in espace.ETAPES

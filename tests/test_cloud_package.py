@@ -20,7 +20,7 @@ def test_cloud_bundle_has_matching_cli_and_self_contained_skills(tmp_path, platf
     output = cloud.build_cloud(platform, wheel, tmp_path / "cloud.zip")
     with zipfile.ZipFile(output) as archive:
         assert archive.read("remporte/cli/" + wheel.name) == wheel.read_bytes()
-        assert len([p for p in archive.namelist() if p.endswith("SKILL.md")]) == 6
+        assert len([p for p in archive.namelist() if p.endswith("SKILL.md")]) == 13
         startup = archive.read("remporte/DEMARRAGE.md").decode()
         assert "attends mon accord" in startup
         assert "skills/remporte-init/SKILL.md" in startup

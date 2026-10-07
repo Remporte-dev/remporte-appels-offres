@@ -1,0 +1,6 @@
+interface:
+  display_name: "Fichier imposé par l'acheteur"
+  short_description: "Remplir un questionnaire ou une annexe de l'acheteur"
+  default_prompt: "Remplis le fichier fourni par l'acheteur sans changer sa structure."
+policy:
+  allow_implicit_invocation: true

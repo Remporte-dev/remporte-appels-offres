@@ -2,7 +2,8 @@
 
 Plugin gratuit et open source pour répondre à un marché public français : lecture du DCE,
 analyse, décision go/no-go, plan du mémoire technique, rédaction, contrôle de conformité,
-relecture, formulaires DC1/DC2/DC4 et exports Word, HTML et Excel.
+relecture, bordereaux de prix, formulaires DC1/DC2/DC4, documents de travail en HTML et
+matrice de conformité Excel.
 
 Les instructions servent à Claude Code, Cowork, Codex et ChatGPT Work lorsque l'environnement
 donne accès aux commandes et aux fichiers concernés. Il faut pouvoir lancer des commandes et
@@ -34,17 +35,28 @@ de l'agent et suit ses conditions de traitement. Détails : [politique de confid
 
 ## Contenu
 
-Le plugin fournit six skills : `init`, `nouvel-ao`, `repondre-ao`, `lecture-dce`,
-`redaction-section`, `relecture-ao`. Il fournit aussi trois sous-agents Claude : `lecteur-dce`,
+Le plugin fournit treize skills : `init`, `nouvel-ao`, `repondre-ao` (qui oriente vers la bonne
+méthode selon le livrable), `lecture-dce`, `redaction-section`, `relecture-ao`,
+`memoire-technique`, `cadre-reponse`, `fichier-impose`, `chiffrage`, `visuels`, `soutenance` et
+`candidature`. Il fournit aussi trois sous-agents Claude : `lecteur-dce`,
 `redacteur-section`, `relecteur`. Les procédures métier partagées se trouvent dans
 [references/](references/lecture-dce.md). Le plugin ne contient ni hook ni serveur MCP.
 
-## Remporte, le logiciel en ligne
+## Uniquement avec Remporte
 
-Ce plugin fonctionne avec le CLI et sans compte Remporte. Remporte existe aussi sous forme de
-logiciel en ligne, distinct du plugin, qui ajoute une base de connaissance d'entreprise partagée,
-la mise en forme du mémoire dans le modèle Word de l'entreprise, des plans prêts à adapter et le
-remplissage des bordereaux de prix.
+Ce plugin fonctionne avec le CLI et sans compte Remporte. Ces fonctions demandent une clé API
+Remporte, sur devis, distincte du plugin :
+
+- **Détection de conformité des chiffrages** : bordereaux de prix contrôlés face au DCE et à
+  l'acte d'engagement.
+- **Gestion de catalogues** : vos prestations, produits et prix, réutilisés d'un marché à
+  l'autre.
+- **Chartes graphiques avancées** : documents au format de votre entreprise, avec reprise
+  intelligente de votre mise en page.
+- **Gestion des expériences** : vos références et projets passés, mobilisés comme preuves.
+- **Détection des contraintes et des incohérences de l'acheteur** dans le DCE.
+- **Base de connaissances partagée par l'équipe** et flotte d'agents Remporte de vérification
+  de conformité.
 
 Présentation : https://remporte.fr/outils/agent-ia/
 

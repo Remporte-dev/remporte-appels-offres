@@ -212,9 +212,9 @@ def etat(dossier: Path) -> dict:
             "marqueurs": restants,
         }
     brut["redaction"] = _etat_redaction(dossier)
-    memoire = dossier / "export" / "memoire.docx"
+    dossier_html = dossier / "export" / "dossier.html"
     brut["export"] = {
-        "etat": "faite" if memoire.exists() else "a_faire",
+        "etat": "faite" if dossier_html.exists() else "a_faire",
         "marqueurs": None,
     }
     etapes = {etape: brut[etape] for etape in ETAPES}

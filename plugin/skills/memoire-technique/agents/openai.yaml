@@ -1,0 +1,6 @@
+interface:
+  display_name: "Mémoire technique"
+  short_description: "Rédiger le mémoire technique d'un appel d'offres"
+  default_prompt: "Rédige le mémoire technique de ce dossier de réponse, en partant du modèle de l'entreprise."
+policy:
+  allow_implicit_invocation: true

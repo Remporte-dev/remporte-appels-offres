@@ -40,7 +40,7 @@ def build_cloud(platform: str, wheel: Path, output: Path) -> Path:
     entries["remporte/install_skills.py"] = (ROOT / "scripts/install_skills.py").read_bytes()
     entries["remporte/DEMARRAGE.md"] = (
         "# Remporte dans " + ("Muse" if platform == "muse" else "ChatGPT Work") + "\n\n"
-        "Ce paquet contient le CLI et six compétences autonomes. Il n'est pas un connecteur publié dans un annuaire.\n\n"
+        "Ce paquet contient le CLI et les compétences Remporte, chacune autonome. Il n'est pas un connecteur publié dans un annuaire.\n\n"
         "## Demande à donner à votre agent\n\n"
         "Lis ce fichier et vérifie que tu peux exécuter des commandes, lire et écrire les fichiers de cet environnement. "
         "Si ces accès manquent, arrête et explique la limite. N'utilise aucun chemin de mon ordinateur personnel.\n\n"

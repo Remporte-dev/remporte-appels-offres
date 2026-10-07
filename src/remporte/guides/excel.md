@@ -24,6 +24,5 @@ document à part.
 `remporte exporter` produit aussi `export/matrice-conformite.xlsx` : utile
 pour suivre quelles exigences sont traitées et où.
 
-Les **bordereaux de prix** (BPU, DPGF, DQE) et l'**acte d'engagement** ne se
-remplissent pas ici : le report des prix dans le fichier de l'acheteur, sans
-toucher à ses formules, est disponible avec Remporte (`remporte offre`).
+Les **bordereaux de prix** (BPU, DPGF, DQE) ont leur guide :
+`remporte guide chiffrage`.

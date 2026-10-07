@@ -11,8 +11,8 @@
 
 **Un CLI et des intégrations pour Claude Code, Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse et Pi, gratuits et open source, pour répondre à un marché
 public français avec votre agent IA** : lecture du DCE, analyse, go/no-go, plan du mémoire
-technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4 et exports
-Word, HTML et Excel.
+technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4, documents
+de travail en HTML et matrice de conformité Excel.
 
 Vous donnez le zip du DCE. Votre agent (Claude Code, Codex, Gemini CLI, Pi…) lit les pièces,
 suit une méthode écrite par des gens qui répondent à des appels d'offres, et produit un
@@ -36,7 +36,7 @@ le logiciel de réponse aux appels d'offres.
 | `sections/` | Le mémoire technique, une section par fichier, avec les preuves tirées de vos documents |
 | `05-relecture.md` | Relecture avec la grille de notation de l'acheteur, par un agent qui n'a rien écrit |
 | `candidature/` | DC1, DC2 et DC4 officiels remplis |
-| `export/` | `memoire.docx`, `dossier.html`, `analyse.html`, `feuille-de-route.html`, `matrice-conformite.xlsx` |
+| `export/` | `analyse.html`, `feuille-de-route.html`, `dossier.html`, `matrice-conformite.xlsx` |
 
 Quand le cadre de réponse numérote ses exigences, `remporte cadre --couverture` liste celles
 qu'aucune section ne traite encore. Un mémoire qui oublie une exigence perd des points sans
@@ -148,7 +148,7 @@ flowchart LR
 | Plan | `04-plan.md` | Trame calée sur le cadre de réponse ou les critères | `plan` |
 | Rédaction | `sections/` | Une section par fichier, preuves tirées de votre base | `redaction` |
 | Relecture | `05-relecture.md` | Note le mémoire avec la grille de l'acheteur | `relecture` |
-| Export | `export/` | Word, HTML, Excel | `export` |
+| Export | `export/` | Documents de travail HTML, matrice Excel ; votre agent produit le mémoire Word | `export` |
 
 `remporte etat` dit où en est le dossier et quelle est l'étape suivante. Le CLI fait sans
 modèle tout ce qui peut l'être (conversion, recherche, contrôle de couverture, mise en page) ;
@@ -185,7 +185,7 @@ Un seul dossier, dans l’environnement choisi ou un dossier partagé accessible
 | `remporte candidature preparer\|remplir` | DC1, DC2, DC4 officiels |
 | `remporte base indexer\|chercher` | Index et recherche dans les documents de l'entreprise |
 | `remporte fiche [--creer]` | Fiche entreprise lue par tous les agents |
-| `remporte exporter` | Mémoire Word, analyse et feuille de route HTML, matrice de conformité Excel |
+| `remporte exporter` | Analyse, feuille de route et dossier HTML, matrice de conformité Excel |
 | `remporte html <fichier.md>` | Mettre n'importe quel markdown en page HTML |
 | `remporte offre` | Ce que fait Remporte en plus |
 
@@ -206,18 +206,27 @@ Le CLI s’exécute dans l’environnement où vous le lancez et lit les fichier
 
 **Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install --upgrade remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
 
-## Ce que le CLI ne fait pas
+## Uniquement avec Remporte
 
-- Remplir l'acte d'engagement et le bordereau de prix (BPU, DPGF, DQE) dans le fichier de
-  l'acheteur.
-- Mettre le mémoire dans le modèle Word de votre entreprise.
-- Donner les prix des marchés comparables déjà attribués.
-- Lire les PDF scannés et les anciens fichiers Word `.doc` : ils sont signalés dans
-  l'inventaire.
-- Chercher des appels d'offres : il part du DCE que vous avez déjà.
+Le CLI est gratuit et le reste. Ces fonctions demandent une clé API Remporte, sur devis, qui
+donne aussi accès à l'interface Remporte à prix réduit :
 
-Les trois premiers points sont ce que fait
-[Remporte](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=ne-fait-pas#aller-plus-loin).
+- **Détection de conformité des chiffrages** : bordereaux de prix contrôlés face au DCE et à
+  l'acte d'engagement.
+- **Gestion de catalogues** : vos prestations, produits et prix, réutilisés d'un marché à
+  l'autre.
+- **Chartes graphiques avancées** : documents au format de votre entreprise, avec reprise
+  intelligente de votre mise en page.
+- **Gestion des expériences** : vos références et projets passés, mobilisés comme preuves.
+- **Détection des contraintes et des incohérences de l'acheteur** dans le DCE.
+- **Base de connaissances partagée par l'équipe** et flotte d'agents Remporte de vérification
+  de conformité.
+
+Présentation et clé API :
+[remporte.fr/outils/agent-ia](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=uniquement-remporte#cle-api).
+
+Hors du périmètre du CLI : lire les PDF scannés et les anciens fichiers Word `.doc` (ils sont
+signalés dans l'inventaire), et chercher des appels d'offres (il part du DCE que vous avez déjà).
 
 ## Questions fréquentes
 
@@ -257,7 +266,7 @@ uv run python scripts/package_plugin.py --platform claude --output dist/remporte
 uv run python scripts/package_plugin.py --platform openai --output dist/remporte-openai.zip
 ```
 
-L'archive Claude conserve ses agents et son manifeste. L'archive OpenAI inclut les six
+L'archive Claude conserve ses agents et son manifeste. L'archive OpenAI inclut les treize
 skills et leurs métadonnées, les procédures communes et les manifests OpenAI. Les dépendances
 du CLI sont déclarées dans `pyproject.toml` ; aucune n'est installée par l'archive du plugin.
 Le script refuse d'écraser une archive existante.
@@ -271,7 +280,8 @@ agent (Claude Code, Codex, Gemini CLI, Pi) answer **French public procurement te
 (*appels d'offres*, *marchés publics*): it reads the tender documents (DCE), extracts weighted
 award criteria and requirements, drafts the technical proposal (*mémoire technique*) section by
 section from your company documents, checks coverage of every numbered requirement, fills the
-official DC1/DC2/DC4 forms, and exports to Word, HTML and Excel. Everything runs locally; no
+official DC1/DC2/DC4 forms, and produces HTML working documents and an Excel compliance matrix
+(your agent writes the Word proposal itself). Everything runs locally; no
 account, no network calls. The method and outputs are in French.
 
 ## Licence

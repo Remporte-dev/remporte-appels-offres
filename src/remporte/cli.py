@@ -148,13 +148,13 @@ def _construire_parser() -> argparse.ArgumentParser:
 
     p = sous.add_parser(
         "exporter", parents=[communes, avec_dossier],
-        help="produire memoire.docx, dossier.html et les documents de travail "
+        help="produire dossier.html et les documents de travail "
              "(analyse, feuille de route, matrice de conformité)",
     )
     p.add_argument(
         "--formats",
-        default="docx,html,analyse,feuille,matrice", metavar="LISTE",
-        help="formats parmi docx,html,analyse,feuille,matrice (défaut : tous)",
+        default="html,analyse,feuille,matrice", metavar="LISTE",
+        help="formats parmi html,analyse,feuille,matrice (défaut : tous)",
     )
     p.set_defaults(func=_cmd_exporter)
 
@@ -692,7 +692,11 @@ def _cmd_base_chercher(args) -> int:
 
 
 GUIDES_ANNEXES = {
+    "livrables": "quel livrable, quelle méthode (à lire en premier)",
     "formats": "limite de pages, fichier imposé, soutenance",
+    "cadre-reponse": "répondre dans le cadre de réponse technique de l'acheteur",
+    "chiffrage": "remplir un bordereau de prix (BPU, DPGF, DQE)",
+    "visuels": "planning, organigramme, schémas",
     "soutenance": "support préparé sur les fichiers de l'entreprise",
     "excel": "répondre dans un fichier Excel ou Word imposé",
     "candidature": "DC1, DC2, DC4",
@@ -707,7 +711,7 @@ def _cmd_guide(args) -> int:
             print(f"  remporte guide {etape}")
         print("Selon le dossier :")
         for nom, objet in GUIDES_ANNEXES.items():
-            print(f"  remporte guide {nom:<12} {objet}")
+            print(f"  remporte guide {nom:<14} {objet}")
         print("Aussi : remporte offre")
         return 0
     if args.etape not in espace.ETAPES and args.etape not in GUIDES_ANNEXES:
@@ -778,13 +782,17 @@ def _cmd_exporter(args) -> int:
     if dossier is None:
         return code
     formats = {f.strip().lower() for f in args.formats.split(",") if f.strip()}
-    inconnus = formats - {"docx", "html", "analyse", "feuille", "matrice"}
+    if "docx" in formats:
+        print("Erreur : le mémoire Word se produit avec votre agent, à partir de "
+              "sections/ (remporte guide export).", file=sys.stderr)
+        return 1
+    inconnus = formats - {"html", "analyse", "feuille", "matrice"}
     if inconnus:
         print(f"Erreur : formats inconnus : {', '.join(sorted(inconnus))} "
-              "(choix : docx, html, analyse, feuille, matrice)", file=sys.stderr)
+              "(choix : html, analyse, feuille, matrice)", file=sys.stderr)
         return 1
     if not formats:
-        formats = {"docx", "html"}
+        formats = {"html", "analyse", "feuille", "matrice"}
     resultat = export.exporter(dossier, formats)
     if args.json:
         _sortie_json({cle: str(valeur) if valeur else None
@@ -792,8 +800,8 @@ def _cmd_exporter(args) -> int:
         return 0
     for format_, chemin in resultat.items():
         print(f"{format_} : {chemin}" if chemin else f"{format_} : non produit")
-    print("Mémoire dans votre modèle Word, prix reportés dans le bordereau de "
-          f"l'acheteur : disponible avec Remporte, {lien.site('export')}")
+    print("Base de connaissances de l'équipe, documents au format de votre "
+          f"entreprise, vérification de conformité : avec Remporte, {lien.site('export')}")
     return 0
 
 

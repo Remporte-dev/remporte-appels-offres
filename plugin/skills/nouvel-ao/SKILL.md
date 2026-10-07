@@ -53,7 +53,8 @@ qui ménagent l'abonnement et ton propre contexte :
 | Plan | toi | `remporte guide plan` |
 | Rédaction | sous-agent `remporte:redacteur-section` | skill `remporte:redaction-section`, procédure [rédaction d'une section](../../references/redaction-section.md) |
 | Relecture | sous-agent `remporte:relecteur` | skill `remporte:relecture-ao`, procédure [relecture](../../references/relecture-ao.md) |
-| Export | toi | `remporte exporter` |
+| Livrables | toi | `remporte guide livrables` : une skill par livrable (`remporte:memoire-technique`, `remporte:cadre-reponse`, `remporte:chiffrage`, `remporte:fichier-impose`, `remporte:visuels`, `remporte:soutenance`, `remporte:candidature`), en demandant d'abord le modèle de l'entreprise |
+| Documents de travail | toi | `remporte exporter` |
 
 Donne à chaque lecteur le chemin du dossier ; il écrit `00-index.md` et `02-analyse.md`. Pour la rédaction, donne une section par agent et lance-les par lots de trois ou quatre si les outils disponibles le permettent, les plus pondérées d'abord. Coche le plan après réception de chaque section. Le relecteur écrit `05-relecture.md` ; tu appliques ensuite ses corrections.
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Planning, organigramme, schémas"
+  short_description: "Produire les visuels de la réponse"
+  default_prompt: "Prépare le planning et l'organigramme de la réponse à partir de notre modèle."
+policy:
+  allow_implicit_invocation: true

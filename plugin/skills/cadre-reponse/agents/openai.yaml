@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cadre de réponse technique"
+  short_description: "Répondre dans le cadre de réponse imposé par l'acheteur"
+  default_prompt: "Réponds dans le cadre de réponse technique de l'acheteur et vérifie la couverture des exigences."
+policy:
+  allow_implicit_invocation: true

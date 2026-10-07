@@ -1,0 +1,6 @@
+interface:
+  display_name: "Candidature"
+  short_description: "Remplir les DC1, DC2 et DC4"
+  default_prompt: "Prépare la candidature : DC1, DC2 et, s'il y a lieu, DC4."
+policy:
+  allow_implicit_invocation: true

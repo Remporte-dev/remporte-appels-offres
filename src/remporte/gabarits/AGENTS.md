@@ -20,8 +20,8 @@ Règles qui valent pour tout le dossier :
   formule creuse.
 - Économise ton abonnement : `remporte guide modeles` dit quelle puissance
   de modèle et quels sous-agents utiliser à chaque étape.
-- Formats imposés, soutenance, fichier Excel ou Word à compléter, DC1 et DC2 :
-  `remporte guide formats`, `soutenance`, `excel`, `candidature`.
-- Si l'utilisateur veut un autre format de sortie (présentation, tableur),
-  utilise tes propres outils pour ce format ; les fichiers markdown du
+- Chaque livrable a sa méthode (mémoire, cadre de réponse, bordereau de prix,
+  fichier imposé, visuels, soutenance, DC1 et DC2) : `remporte guide livrables`.
+  Demande à l'utilisateur s'il a un modèle, et produis les fichiers Word,
+  Excel ou PowerPoint avec tes propres outils ; les fichiers markdown du
   dossier restent la source.

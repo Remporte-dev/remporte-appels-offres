@@ -1,0 +1,6 @@
+interface:
+  display_name: "Soutenance"
+  short_description: "Préparer la soutenance orale"
+  default_prompt: "Prépare le déroulé et le support de soutenance dans notre modèle de présentation."
+policy:
+  allow_implicit_invocation: true

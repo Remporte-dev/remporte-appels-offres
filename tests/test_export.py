@@ -1,4 +1,4 @@
-"""Tests de remporte.export : DOCX assemblé, HTML autonome à deux onglets."""
+"""Tests de remporte.export : HTML autonome à deux onglets, pas de mémoire Word."""
 
 from __future__ import annotations
 
@@ -46,26 +46,7 @@ def test_exporter_refuse_plan_vide(tmp_path: Path):
     dossier = tmp_path / "reponse"
     espace.initialiser(source, dossier)
     with pytest.raises(espace.Erreur):
-        export.exporter(dossier, {"docx"})
-
-
-def test_exporter_docx(tmp_path: Path, dossier_pret: Path):
-    resultat = export.exporter(dossier_pret, {"docx"})
-    chemin = resultat["docx"]
-    assert chemin == dossier_pret / "export" / "memoire.docx"
-    assert chemin.exists()
-
-    from docx import Document
-
-    document = Document(str(chemin))
-    textes = [p.text for p in document.paragraphs]
-    assert "Mémoire technique" in textes
-    assert "01 — Moyens humains" in textes
-    assert any("trois" in t for t in textes)
-    assert any(t.style.name.startswith("List Bullet") for t in document.paragraphs)
-    tableau = document.tables[0]
-    assert tableau.cell(0, 0).text == "Profil"
-    assert tableau.cell(1, 1).text == "3"
+        export.exporter(dossier, {"html"})
 
 
 def test_exporter_html(tmp_path: Path, dossier_pret: Path):
@@ -81,24 +62,15 @@ def test_exporter_html(tmp_path: Path, dossier_pret: Path):
     assert "http://" not in page and "https://" not in page  # zéro ressource
 
 
-def test_exporter_les_deux_formats(tmp_path: Path, dossier_pret: Path):
-    resultat = export.exporter(dossier_pret, {"docx", "html"})
-    assert resultat["docx"].exists() and resultat["html"].exists()
-
-
-def test_exporter_section_manquante(tmp_path: Path, dossier_pret: Path):
-    (dossier_pret / "sections/02-references.md").unlink()
-    resultat = export.exporter(dossier_pret, {"docx"})
-    from docx import Document
-
-    document = Document(str(resultat["docx"]))
-    assert any("section 02 manquante" in p.text for p in document.paragraphs)
+def test_exporter_ne_produit_plus_de_memoire_word(dossier_pret: Path):
+    """Le mémoire Word se produit avec l'agent de l'utilisateur, pas avec le CLI."""
+    resultat = export.exporter(dossier_pret, {"html", "analyse", "feuille", "matrice"})
+    assert "docx" not in resultat
+    assert not (dossier_pret / "export" / "memoire.docx").exists()
 
 
 def test_export_sans_doublon_ni_notes(tmp_path: Path, dossier_pret: Path):
-    """Titre propre à la section, notes `>` retirées, lignes coupées recollées."""
-    from docx import Document
-
+    """Les notes de travail `>` ne partent pas dans le dossier HTML."""
     plan = dossier_pret / "04-plan.md"
     plan.write_text("- [x] 01 — Moyens\n", encoding="utf-8")
     for ancien in (dossier_pret / "sections").glob("*.md"):
@@ -108,10 +80,6 @@ def test_export_sans_doublon_ni_notes(tmp_path: Path, dossier_pret: Path):
         "Une équipe de trois\ningénieurs dédiés.\n",
         encoding="utf-8",
     )
-    export.exporter(dossier_pret, {"docx", "html"})
-    textes = [p.text for p in Document(dossier_pret / "export" / "memoire.docx").paragraphs]
-    assert textes.count("01 — Moyens") == 1
-    assert "Une équipe de trois ingénieurs dédiés." in textes
-    assert not any("Sert le critère" in t for t in textes)
+    export.exporter(dossier_pret, {"html"})
     page = (dossier_pret / "export" / "dossier.html").read_text(encoding="utf-8")
     assert "Sert le critère" not in page

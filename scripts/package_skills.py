@@ -64,6 +64,8 @@ def _portable_skill(name: str, source: Path) -> tuple[str, set[str]]:
     body = re.sub(r"\$remporte:([a-z0-9-]+)|/remporte:([a-z0-9-]+)",
                   lambda m: "remporte-" + (m.group(1) or m.group(2)), body)
     body = re.sub(r"remporte:(lecteur-dce|redacteur-section|relecteur)", r"remporte-\1", body)
+    # Nom qualifié d'une compétence du plugin (`remporte:chiffrage`) : nom portable.
+    body = re.sub(r"`remporte:([a-z0-9-]+)`", r"`remporte-\1`", body)
     # Replace specialized-agent routing with skills first, generic sub-agent fallback,
     # and disclosed self-execution when delegation is unavailable.
     body = re.sub(r"Si l'agent spécialisé `[^`]+` est indisponible,\s*transmets cette procédure(?:(?:,| et) le dossier)?(?: et la section)? à un sous-agent générique si l'environnement en propose un\. Sinon,\s*(?:exécute la procédure toi-même|rédige la section toi-même|relis le mémoire toi-même)\.",
@@ -91,9 +93,10 @@ def _portable_skill(name: str, source: Path) -> tuple[str, set[str]]:
 | Plan | `remporte guide plan` |
 | Rédaction | compétence `remporte-redaction-section`, [rédaction d'une section](references/redaction-section.md) |
 | Relecture | compétence `remporte-relecture-ao`, [relecture](references/relecture-ao.md) |
-| Export | `remporte exporter` |
+| Livrables | `remporte guide livrables`, puis la compétence Remporte du livrable, en demandant d'abord le modèle de l'entreprise |
+| Documents de travail | `remporte exporter` |
 """
-        body = re.sub(r"(?m)^\| Étape \|.*?^\| Export \|[^\n]*\n", table, body, flags=re.S)
+        body = re.sub(r"(?m)^\| Étape \|.*?^\| Documents de travail \|[^\n]*\n", table, body, flags=re.S)
         references.update({"lecture-dce.md", "redaction-section.md", "relecture-ao.md"})
     return f"---\n{header.strip()}\n---\n{body}", references
 
@@ -105,8 +108,8 @@ def build_archive(platform: str, output: Path) -> Path:
     manifest = json.loads((ROOT / "plugin" / "plugin.json").read_text(encoding="utf-8"))
     entries: dict[str, bytes] = {}
     names = sorted(p.parent.name for p in SKILLS_DIR.glob("*/SKILL.md") if p.is_file())
-    if len(names) != 6:
-        raise ValueError(f"expected six skills, found {len(names)}")
+    if not names:
+        raise ValueError("no skill found")
     for name in names:
         skill, refs = _portable_skill(name, SKILLS_DIR / name / "SKILL.md")
         prefix = f"remporte/skills/remporte-{name}/"
@@ -132,7 +135,7 @@ def build_archive(platform: str, output: Path) -> Path:
             "pi": "~/.pi/agent/skills", "portable": "un dossier de votre choix",
         }[platform]
         entries["remporte/README.md"] = (
-            "# Compétences Remporte\n\nCopiez les six sous-dossiers de `skills/` dans `" + destination + "`. "
+            "# Compétences Remporte\n\nCopiez les sous-dossiers de `skills/` dans `" + destination + "`. "
             "Chaque compétence est autonome avec ses fichiers de référence.\n"
         ).encode("utf-8")
     entries["remporte/LICENSE"] = (ROOT / "LICENSE").read_bytes()

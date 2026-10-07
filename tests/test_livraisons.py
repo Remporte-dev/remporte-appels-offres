@@ -182,14 +182,14 @@ def test_matrice_vide_refusee(tmp_path: Path):
 
 
 def test_cli_exporter_produit_tout(dossier_pret: Path, capsys):
-    """`remporte exporter` sans --formats produit les cinq fichiers."""
+    """`remporte exporter` sans --formats produit les quatre fichiers."""
     from remporte import cli
 
     assert cli.main(["exporter", "--dossier", str(dossier_pret)]) == 0
     sortie = capsys.readouterr().out
-    for cle in ("docx", "html", "analyse", "feuille", "matrice"):
+    for cle in ("html", "analyse", "feuille", "matrice"):
         assert f"{cle} : " in sortie
-    for nom in ("memoire.docx", "dossier.html", "analyse.html",
+    for nom in ("dossier.html", "analyse.html",
                 "feuille-de-route.html", "matrice-conformite.xlsx"):
         assert (dossier_pret / "export" / nom).exists()
 
@@ -234,3 +234,26 @@ def _aucune_ressource_externe(page: str) -> bool:
     """Page autonome : aucune image, feuille de style ou script chargé du réseau.
     Un lien cliquable vers le site Remporte est permis."""
     return not any(motif in page for motif in ('src="http', "<link", "url(http", "@import"))
+
+
+def test_analyse_renvoie_vers_la_matrice(dossier_pret: Path):
+    """Exportées ensemble, l'analyse renvoie vers la matrice avec son bilan."""
+    resultat = export.exporter(dossier_pret, {"analyse", "matrice"})
+    page = resultat["analyse"].read_text(encoding="utf-8")
+    assert "Matrice de conformité" in page
+    assert 'href="matrice-conformite.xlsx"' in page
+    assert "2 sections du plan, dont 1 encore à rédiger" in page
+
+
+def test_analyse_sans_matrice_ni_renvoi(dossier_pret: Path):
+    """Sans matrice exportée, l'analyse ne renvoie vers rien."""
+    page = export.exporter(dossier_pret, {"analyse"})["analyse"].read_text(encoding="utf-8")
+    assert "matrice-conformite.xlsx" not in page
+
+
+def test_analyse_seule_garde_le_lien_vers_une_matrice_existante(dossier_pret: Path):
+    """Une matrice d'un export précédent reste citée, sans bilan recalculé."""
+    export.exporter(dossier_pret, {"matrice"})
+    page = export.exporter(dossier_pret, {"analyse"})["analyse"].read_text(encoding="utf-8")
+    assert 'href="matrice-conformite.xlsx"' in page
+    assert "encore à rédiger" not in page

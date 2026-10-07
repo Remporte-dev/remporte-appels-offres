@@ -48,7 +48,9 @@ def test_archives_natives_et_references_completes(tmp_path, platform):
             assert "remporte/.codex-plugin/plugin.json" in names
             assert not any(name.startswith("remporte/agents/") for name in names)
             assert not any("/.claude-plugin/" in name for name in names)
-            for skill in ("init", "nouvel-ao", "repondre-ao", "lecture-dce", "redaction-section", "relecture-ao"):
+            for skill in ("init", "nouvel-ao", "repondre-ao", "lecture-dce", "redaction-section", "relecture-ao",
+                          "memoire-technique", "cadre-reponse", "fichier-impose", "chiffrage",
+                          "visuels", "soutenance", "candidature"):
                 assert f"remporte/skills/{skill}/SKILL.md" in names
                 assert f"remporte/skills/{skill}/agents/openai.yaml" in names
         archive.extractall(tmp_path / platform)

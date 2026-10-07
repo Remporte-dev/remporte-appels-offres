@@ -8,11 +8,9 @@ une certitude. Une offre qui ne respecte pas la forme imposée peut être
 | Constat | Ce que tu fais |
 |---|---|
 | Limite de pages | Reporte-la dans `04-plan.md` et répartis le volume (environ 500 mots par page). À la relecture, compte les pages du mémoire exporté. |
-| CRT en Word | La réponse se donne **dans le fichier de l'acheteur**, à sa place, sans changer sa trame : `remporte guide excel` vaut aussi pour un Word imposé. Le mémoire rédigé dans `sections/` sert de matière. |
-| Fichier Excel imposé | `remporte guide excel`. |
+| CRT en Word | La réponse se donne **dans le fichier de l'acheteur**, à sa place, sans changer sa trame : `remporte guide cadre-reponse`. Le mémoire rédigé dans `sections/` sert de matière. |
+| Fichier Excel imposé | `remporte guide excel` ; bordereau de prix : `remporte guide chiffrage`. |
 | Soutenance ou audition | `remporte guide soutenance`. |
 
-Si l'utilisateur veut un autre format de sortie que ceux de `remporte
-exporter` (présentation, tableur, PDF mis en page), utilise les outils dont
-tu disposes déjà pour ces formats, à partir des fichiers markdown du dossier,
-qui restent la source.
+Pour choisir la méthode de chaque livrable (mémoire, cadre de réponse,
+bordereau, visuels, soutenance) : `remporte guide livrables`.

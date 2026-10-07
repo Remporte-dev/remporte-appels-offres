@@ -184,13 +184,14 @@ def test_exporter(tmp_path: Path, zip_dce: Path, capsys):
     )
     assert main(["exporter", "--dossier", str(dossier)]) == 0
     sortie = capsys.readouterr().out
-    assert "memoire.docx" in sortie and "dossier.html" in sortie
-    assert (dossier / "export" / "memoire.docx").exists()
+    assert "dossier.html" in sortie and "memoire.docx" not in sortie
     assert (dossier / "export" / "dossier.html").exists()
     # état : export devient « faite »
     assert main(["etat", "--dossier", str(dossier), "--json"]) == 0
     etat = json.loads(capsys.readouterr().out)
     assert etat["etapes"]["export"]["etat"] == "faite"
+    # le mémoire Word n'est plus un format du CLI
+    assert main(["exporter", "--dossier", str(dossier), "--formats", "docx"]) == 1
 
 
 def test_exporter_formats_invalides(tmp_path: Path, zip_dce: Path):

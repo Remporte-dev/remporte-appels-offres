@@ -1,8 +1,8 @@
-"""Export du dossier de réponse : mémoire DOCX, dossier HTML et documents de travail.
+"""Export du dossier de réponse : dossier HTML et documents de travail.
 
-Le DOCX assemble les sections dans l'ordre de 04-plan.md (document de
-l'acheteur, style neutre). `dossier.html` est la page autonome à deux onglets
-d'origine. Trois documents de travail complètent l'export, sur la charte
+Le CLI ne produit pas le mémoire Word : l'agent de l'utilisateur le fait avec
+ses propres outils (`remporte guide export`). `dossier.html` est la page
+autonome à deux onglets d'origine. Trois documents de travail complètent l'export, sur la charte
 Remporte (remporte.charte) : `analyse.html` (analyse et go/no-go mis en page
 pour un dirigeant), `feuille-de-route.html` (avancement, sections, trous à
 combler) et `matrice-conformite.xlsx` (exigences du CRT ou sections du plan).
@@ -23,8 +23,8 @@ from remporte import cadre, charte, espace
 def exporter(dossier: Path, formats: set[str]) -> dict:
     """Exporte les formats demandés.
 
-    Rend un dict {docx, html, analyse, feuille, matrice} → chemin ou None. Le
-    mémoire et le dossier demandent un plan avec sections ; les documents de
+    Rend un dict {html, analyse, feuille, matrice} → chemin ou None. Le
+    dossier demande un plan avec sections ; les documents de
     travail se contentent des fichiers d'analyse déjà remplis.
     """
     dossier = Path(dossier)
@@ -33,172 +33,37 @@ def exporter(dossier: Path, formats: set[str]) -> dict:
             f"{dossier} n'est pas un dossier de réponse (pas de .remporte/)."
         )
     sections = espace.sections_plan(dossier)
-    if ("docx" in formats or "html" in formats) and not sections:
+    if "html" in formats and not sections:
         raise espace.Erreur(
             "04-plan.md ne liste aucune section au format `- [ ] NN — Titre`. "
             "Complétez le plan (remporte guide plan) avant d'exporter."
         )
     resultat: dict[str, Path | None] = {
-        "docx": None, "html": None, "analyse": None, "feuille": None,
+        "html": None, "analyse": None, "feuille": None,
         "matrice": None,
     }
-    if "docx" in formats:
-        resultat["docx"] = _exporter_docx(dossier, sections)
     if "html" in formats:
         resultat["html"] = _exporter_html(dossier, sections)
+    # La matrice passe avant l'analyse, qui renvoie vers elle avec son bilan.
+    bilan_matrice = None
+    if "matrice" in formats:
+        resultat["matrice"], bilan_matrice = _exporter_matrice(dossier, sections)
     if "analyse" in formats:
-        resultat["analyse"] = _exporter_analyse(dossier)
+        resultat["analyse"] = _exporter_analyse(dossier, bilan_matrice)
     if "feuille" in formats:
         resultat["feuille"] = _exporter_feuille_de_route(dossier, sections)
-    if "matrice" in formats:
-        resultat["matrice"] = _exporter_matrice(dossier, sections)
     return resultat
 
 
 # ---------------------------------------------------------------------------
-# DOCX (python-docx) — markdown des sections → titres, listes, tableaux
+# Texte des sections pour l'acheteur
 # ---------------------------------------------------------------------------
-
-_RE_MORCEAUX = re.compile(r"(\*\*.+?\*\*|\*.+?\*)")
 
 
 def _texte_pour_acheteur(texte: str) -> str:
     """Retire les notes de travail : une citation `>` est une note de l'agent
     (critère servi, sources consultées), pas un contenu pour l'acheteur."""
     return "\n".join(l for l in texte.splitlines() if not l.lstrip().startswith(">"))
-
-
-def _sans_titre_propre(texte: str) -> str:
-    """Retire le titre de premier niveau qui ouvre la section (`# 01 — …`) :
-    le titre du plan fait foi et l'export l'écrit lui-même, sans doublon."""
-    lignes = texte.splitlines()
-    for index, ligne in enumerate(lignes):
-        if ligne.strip():
-            if re.match(r"^#\s", ligne):
-                del lignes[index]
-            break
-    return "\n".join(lignes)
-
-
-def _exporter_docx(dossier: Path, sections: list[dict]) -> Path:
-    from docx import Document
-
-    document = Document()
-    document.add_heading("Mémoire technique", 0)
-    for section in sections:
-        fichier = (dossier / "sections" / section["fichier"]) \
-            if section["fichier"] else None
-        if fichier is None or not fichier.exists():
-            document.add_heading(f"{section['numero']} — {section['titre']}", 1)
-            document.add_paragraph(
-                f"[section {section['numero']} manquante : {section['titre']}]"
-            )
-            continue
-        document.add_heading(f"{section['numero']} — {section['titre']}", 1)
-        texte = _texte_pour_acheteur(fichier.read_text(encoding="utf-8"))
-        _ecrire_markdown_docx(document, _sans_titre_propre(texte))
-    chemin = dossier / "export" / "memoire.docx"
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    document.save(str(chemin))
-    return chemin
-
-
-def _ecrire_markdown_docx(document, texte: str) -> None:
-    lignes = texte.splitlines()
-    index = 0
-    while index < len(lignes):
-        ligne = lignes[index].rstrip()
-        if not ligne.strip():
-            index += 1
-            continue
-        if ligne.lstrip().startswith("|"):
-            bloc: list[str] = []
-            while index < len(lignes) and lignes[index].lstrip().startswith("|"):
-                bloc.append(lignes[index].strip())
-                index += 1
-            _tableau_docx(document, bloc)
-            continue
-        titre = re.match(r"^(#{1,6})\s+(.*)$", ligne)
-        if titre:
-            document.add_heading(titre.group(2).strip(), min(len(titre.group(1)), 6))
-            index += 1
-            continue
-        puce = re.match(r"^(\s*)[-*]\s+(.*)$", ligne)
-        if puce and not puce.group(2).startswith("*"):
-            niveau = min(len(puce.group(1)) // 2 + 1, 3)
-            _paragraphe_stylee(
-                document, "List Bullet" if niveau == 1 else f"List Bullet {niveau}",
-                puce.group(2),
-            )
-            index += 1
-            continue
-        numero = re.match(r"^(\s*)\d+[.)]\s+(.*)$", ligne)
-        if numero:
-            _paragraphe_stylee(document, "List Number", numero.group(2))
-            index += 1
-            continue
-        # Les lignes coupées à la main forment un seul paragraphe, comme en
-        # markdown : on rassemble jusqu'à la ligne vide ou au prochain bloc.
-        morceaux = [ligne.strip()]
-        index += 1
-        while index < len(lignes) and _ligne_de_paragraphe(lignes[index]):
-            morceaux.append(lignes[index].strip())
-            index += 1
-        paragraphe = document.add_paragraph()
-        _paragraphe_avec_format(paragraphe, " ".join(morceaux))
-
-
-def _ligne_de_paragraphe(ligne: str) -> bool:
-    """Ligne qui prolonge le paragraphe en cours (ni vide, ni début de bloc)."""
-    nette = ligne.strip()
-    if not nette or nette.startswith(("|", "#", ">")):
-        return False
-    return not re.match(r"^([-*]\s|\d+[.)]\s)", nette)
-
-
-def _paragraphe_stylee(document, nom_style: str, texte: str) -> None:
-    try:
-        paragraphe = document.add_paragraph(style=nom_style)
-    except KeyError:
-        paragraphe = document.add_paragraph()
-    _paragraphe_avec_format(paragraphe, texte)
-
-
-def _paragraphe_avec_format(paragraphe, texte: str) -> None:
-    """Texte markdown inline → runs DOCX (gras, italique)."""
-    for morceau in _RE_MORCEAUX.split(texte):
-        if not morceau:
-            continue
-        if morceau.startswith("**") and morceau.endswith("**") and len(morceau) >= 5:
-            run = paragraphe.add_run(morceau[2:-2])
-            run.bold = True
-        elif morceau.startswith("*") and morceau.endswith("*") and len(morceau) >= 3:
-            run = paragraphe.add_run(morceau[1:-1])
-            run.italic = True
-        else:
-            paragraphe.add_run(morceau)
-
-
-def _tableau_docx(document, bloc: list[str]) -> None:
-    lignes_cellules: list[list[str]] = []
-    for ligne in bloc:
-        if re.fullmatch(r"\|[\s:\-|]*\|", ligne):
-            continue  # ligne séparatrice d'en-tête
-        temporaire = ligne.strip().strip("|").replace("\\|", "\x00")
-        lignes_cellules.append(
-            [cellule.strip().replace("\x00", "|") for cellule in temporaire.split("|")]
-        )
-    if not lignes_cellules:
-        return
-    largeur = max(len(ligne) for ligne in lignes_cellules)
-    table = document.add_table(rows=len(lignes_cellules), cols=largeur)
-    try:
-        table.style = "Table Grid"
-    except KeyError:
-        pass
-    for i, ligne in enumerate(lignes_cellules):
-        for j in range(largeur):
-            table.cell(i, j).text = ligne[j] if j < len(ligne) else ""
 
 
 # ---------------------------------------------------------------------------
@@ -469,13 +334,28 @@ def _sans_notes(texte: str) -> str:
     return _RE_MARQUEUR.sub("", "\n".join(lignes))
 
 
-def _exporter_analyse(dossier: Path) -> Path:
-    """analyse.html : l'analyse du DCE et le go/no-go, tels que rédigés."""
-    texte = "\n\n".join(
+def _exporter_analyse(dossier: Path, bilan_matrice: str | None = None) -> Path:
+    """analyse.html : l'analyse du DCE et le go/no-go, tels que rédigés, puis
+    le renvoi vers la matrice de conformité quand elle existe."""
+    morceaux = [
         _sans_notes(_lire_markdown(dossier / nom))
         for nom in ("02-analyse.md", "03-go-no-go.md")
-    )
-    return _ecrire_page(dossier, "analyse.html", texte, "Analyse du DCE")
+    ]
+    renvoi = _renvoi_matrice(dossier, bilan_matrice)
+    if renvoi:
+        morceaux.append(renvoi)
+    return _ecrire_page(dossier, "analyse.html", "\n\n".join(morceaux), "Analyse du DCE")
+
+
+def _renvoi_matrice(dossier: Path, bilan: str | None) -> str:
+    """Paragraphe qui renvoie vers matrice-conformite.xlsx, rangée à côté de
+    analyse.html. Sans bilan (matrice d'un export précédent), le lien seul."""
+    if bilan is None and not (dossier / "export" / "matrice-conformite.xlsx").exists():
+        return ""
+    lien = "[matrice-conformite.xlsx](matrice-conformite.xlsx)"
+    texte = f"Le détail est dans la matrice de conformité, {lien}"
+    texte += f" : {bilan}." if bilan else "."
+    return "## Matrice de conformité\n\n" + texte
 
 
 def _date_limite(dossier: Path) -> str:
@@ -549,8 +429,11 @@ def _cadre_du_dossier(dossier: Path) -> dict | None:
     return cadre.extraire_cadre(dossier / "dce" / candidats[0]["chemin"])
 
 
-def _exporter_matrice(dossier: Path, sections: list[dict]) -> Path:
-    """matrice-conformite.xlsx : une ligne par exigence du CRT, sinon par section."""
+def _exporter_matrice(dossier: Path, sections: list[dict]) -> tuple[Path, str]:
+    """matrice-conformite.xlsx : une ligne par exigence du CRT, sinon par section.
+
+    Rend le chemin et le bilan en une phrase, repris par analyse.html.
+    """
     from openpyxl import Workbook
 
     resultat = _cadre_du_dossier(dossier)
@@ -565,14 +448,24 @@ def _exporter_matrice(dossier: Path, sections: list[dict]) -> Path:
     feuille.title = "Conformité"
     if entrees:
         _remplir_exigences(feuille, entrees, sections)
+        restantes = sum(1 for entree in entrees if not entree["couverte"])
+        bilan = (f"{_pluriel(len(entrees), 'exigence')} du cadre de réponse, "
+                 + (f"dont {restantes} encore à traiter" if restantes else "toutes traitées"))
     else:
         _remplir_sections_plan(feuille, sections, _correspondance(dossier))
+        restantes = sum(1 for section in sections if not section["faite"])
+        bilan = (f"{_pluriel(len(sections), 'section')} du plan, "
+                 + (f"dont {restantes} encore à rédiger" if restantes else "toutes rédigées"))
     feuille.freeze_panes = "A2"
     feuille.auto_filter.ref = feuille.dimensions
     chemin = dossier / "export" / "matrice-conformite.xlsx"
     chemin.parent.mkdir(parents=True, exist_ok=True)
     classeur.save(str(chemin))
-    return chemin
+    return chemin, bilan
+
+
+def _pluriel(nombre: int, mot: str) -> str:
+    return f"{nombre} {mot if nombre <= 1 else mot + 's'}"
 
 
 def _remplir_exigences(

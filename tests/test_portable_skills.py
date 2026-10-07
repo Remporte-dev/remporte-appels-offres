@@ -13,6 +13,8 @@ SCRIPT = ROOT / "scripts" / "package_skills.py"
 SKILL_NAMES = {
     "remporte-init", "remporte-lecture-dce", "remporte-nouvel-ao",
     "remporte-redaction-section", "remporte-relecture-ao", "remporte-repondre-ao",
+    "remporte-memoire-technique", "remporte-cadre-reponse", "remporte-fichier-impose",
+    "remporte-chiffrage", "remporte-visuels", "remporte-soutenance", "remporte-candidature",
 }
 
 
@@ -24,7 +26,7 @@ def run_export(output: Path, platform="portable", check=True):
 
 
 @pytest.mark.parametrize("platform", ["gemini", "hermes", "openclaw", "portable", "pi"])
-def test_export_extracts_six_portable_self_contained_skills(tmp_path, platform):
+def test_export_extracts_portable_self_contained_skills(tmp_path, platform):
     archive_path = tmp_path / f"{platform}.zip"
     run_export(archive_path, platform)
     extract = tmp_path / "extracted"
