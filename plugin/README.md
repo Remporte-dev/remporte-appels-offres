@@ -33,6 +33,18 @@ faute de terminal.
 Le plugin fournit trois skills (`init`, `nouvel-ao`, `repondre-ao`) et trois sous-agents
 (`lecteur-dce`, `redacteur-section`, `relecteur`). Il ne contient ni hook ni serveur MCP.
 
+## Remporte, le logiciel en ligne
+
+Ce plugin fonctionne entièrement seul, sans compte. Remporte existe aussi sous forme de
+logiciel en ligne, distinct du plugin, qui ajoute :
+
+- une base de connaissance de l'entreprise, partagée par l'équipe ;
+- la mise en forme du mémoire dans le modèle Word de l'entreprise ;
+- des plans de mémoire prêts à adapter ;
+- le remplissage des bordereaux de prix (BPU, DPGF, DQE) dans les fichiers de l'acheteur.
+
+Présentation : https://remporte.fr/outils/agent-ia/
+
 ## En savoir plus
 
 - Documentation complète et code source : https://github.com/Remporte-dev/remporte-appels-offres
