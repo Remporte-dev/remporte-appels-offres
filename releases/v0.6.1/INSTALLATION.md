@@ -23,7 +23,7 @@ Installez et connectez votre agent à un modèle avec sa procédure officielle. 
 Installez [uv](https://docs.astral.sh/uv/getting-started/installation/) si nécessaire, puis lancez dans le terminal :
 
 ```bash
-uv tool install remporte
+uv tool install --upgrade remporte
 remporte espace ~/Remporte
 cd ~/Remporte
 ```
@@ -52,7 +52,30 @@ codex plugin add remporte@remporte
 
 Rouvrez Codex dans `~/Remporte`. Dans sa conversation, utilisez `$remporte:init`, puis `$remporte:nouvel-ao /chemin/vers/DCE.zip`. Ces mentions de compétences ne sont pas des commandes à exécuter dans le terminal.
 
-## Gemini CLI
+## Mettre à jour une installation existante
++
++La commande `uv tool install --upgrade remporte` installe ou met à jour le CLI en rafraîchissant le cache de versions.
++
++Pour Claude Code, dans le terminal :
++
++```bash
++claude plugin marketplace update remporte
++claude plugin update remporte@remporte --scope user
++```
++
++Si le plugin était installé pour un projet seulement, lancez la mise à jour depuis ce projet avec son périmètre `project` ou `local` plutôt que `user`.
++
++Pour Codex, rafraîchissez d’abord le catalogue, puis réinstallez le plugin :
++
++```bash
++codex plugin marketplace upgrade remporte
++codex plugin remove remporte@remporte
++codex plugin add remporte@remporte
++```
++
++Rouvrez l’agent après la mise à jour. Les dossiers d’entreprise et de réponse restent dans votre espace de travail. Pour les compétences portables, sauvegardez les anciens dossiers `remporte-*` avant de les retirer du dossier de compétences et d’installer la nouvelle archive : le script d’installation refuse de les écraser.
++
++## Gemini CLI
 
 Décompressez l'archive Gemini, puis installez le dossier `remporte/` qui contient le manifeste :
 

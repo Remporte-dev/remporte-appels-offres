@@ -47,7 +47,7 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 La [release 0.6.1](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v0.6.1) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v0.6.1/) restent aussi disponibles.
 
 ```bash
-uv tool install remporte
+uv tool install --upgrade remporte
 # ou : pipx install remporte
 remporte --version
 ```
@@ -204,7 +204,7 @@ Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat stru
 
 Le CLI s’exécute dans l’environnement où vous le lancez et lit les fichiers accessibles dans cet environnement. En local, ils peuvent être sur votre poste. En cloud, ils sont dans l’environnement cloud choisi et ne sont pas forcément présents sur votre poste. Le raisonnement est fait par votre agent, selon les conditions de son éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
 
-**Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
+**Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install --upgrade remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
 
 ## Ce que le CLI ne fait pas
 
