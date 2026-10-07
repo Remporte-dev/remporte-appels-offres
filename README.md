@@ -1,10 +1,10 @@
 # Remporte CLI : répondre aux appels d'offres publics avec votre agent IA
 
-<p align="center"><img src="docs/remporte-cli.png" alt="Remporte CLI : le CLI appels d'offres pour votre agent IA, du DCE au mémoire technique, avec Claude Code, Codex ou Gemini CLI" width="100%"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Remporte-dev/remporte-appels-offres/main/docs/remporte-cli.png" alt="Remporte CLI : le CLI appels d'offres pour votre agent IA, du DCE au mémoire technique, avec Claude Code, Codex ou Gemini CLI" width="100%"></p>
 
 [![Tests](https://github.com/Remporte-dev/remporte-appels-offres/actions/workflows/tests.yml/badge.svg)](https://github.com/Remporte-dev/remporte-appels-offres/actions/workflows/tests.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-1d2b50)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-1d2b50)](pyproject.toml)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-1d2b50)](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-1d2b50)](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/pyproject.toml)
 [![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
 [![Codex, Gemini CLI, Pi](https://img.shields.io/badge/agents-Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Pi-c2410c)](#avec-codex-gemini-cli-pi-ou-un-autre-agent)
 
@@ -221,4 +221,4 @@ account, no network calls. The method and outputs are in French.
 
 ## Licence
 
-[MIT](LICENSE). © Flowt (Remporte).
+[MIT](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE). © Flowt (Remporte).

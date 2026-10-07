@@ -1,0 +1,18 @@
+name: publication
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: La version du tag correspond au paquet
+        run: test "$(uv version --short)" = "${GITHUB_REF_NAME#v}"
+      - run: uv run pytest -q
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
