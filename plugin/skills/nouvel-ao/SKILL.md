@@ -7,25 +7,23 @@ argument-hint: "[chemin du DCE, zip ou dossier]"
 
 # Nouvel appel d'offres
 
+Dans Codex, appelle cette compétence avec `$remporte:nouvel-ao` ou réponds à une demande naturelle de traitement d'un nouveau DCE. `/remporte:nouvel-ao` est un exemple de commande propre à Claude Code. Prends le chemin du DCE indiqué dans le message ou dans les arguments de la commande ; s'il manque, demande-le dans la conversation.
+
 Tu conduis la réponse avec l'utilisateur. Une étape à la fois ; à chaque point
 de décision, tu t'arrêtes et tu lui demandes. Français simple, sans jargon
 informatique.
 
-Ce plugin fait tourner l'outil `remporte` sur l'ordinateur de l'utilisateur. Si tu ne peux pas lancer de commande (par exemple dans une conversation sur claude.ai), ne tente rien d'autre et réponds seulement :
-« Ce plugin fonctionne dans Claude Code ou dans Cowork, sur votre ordinateur : il a besoin de lire vos fichiers et de lancer l'outil Remporte. Ouvrez-le là-bas pour continuer. »
+Vérifie que tu peux lancer des commandes et lire/écrire les fichiers du dossier choisi. Il faut les deux capacités. Si l'une manque, explique que la tâche demande un environnement avec accès aux commandes et aux fichiers, comme Codex, Claude Code/Cowork ou ChatGPT Work disposant de cet accès. Arrête cette étape si ces accès manquent.
 
-Si `remporte --version` ne répond pas, propose d'abord `/remporte:init`.
+Lance `remporte --version`. Remporte CLI est une dépendance externe. Si la commande est absente, propose `$remporte:init` dans Codex ou `/remporte:init` dans Claude Code pour suivre l'installation. Ne promets pas que l'installation du plugin installe le CLI.
 
 ## 1. Le DCE
 
-Chemin donné en argument : $ARGUMENTS
-
-S'il est vide, demande où se trouve le DCE téléchargé (le zip de la
-plateforme ou le dossier décompressé).
+Demande où se trouve le DCE téléchargé (zip de la plateforme ou dossier décompressé) s'il n'est pas déjà indiqué dans la conversation.
 
 Travaille depuis l'espace de travail de l'entreprise (le dossier qui contient
 `ressources/` et `DCEs/`) : `remporte init "<DCE>"` y crée
-`DCEs/<nom du DCE>/`. Si aucun espace n'existe, propose `/remporte:init`.
+`DCEs/<nom du DCE>/`. Si aucun espace n'existe, propose `$remporte:init` dans Codex ou `/remporte:init` dans Claude Code.
 
 Toutes les commandes suivantes prennent
 `--dossier "<chemin du dossier de réponse>"` si tu n'es pas lancé dedans.
@@ -49,17 +47,18 @@ soutenance). Signale ce qui bloque.
 Tu orchestres ; les lectures et rédactions lourdes partent à des sous-agents,
 qui ménagent l'abonnement et ton propre contexte :
 
-| Étape | Qui | Comment |
+| Étape | Claude Code | Codex / ChatGPT Work |
 |---|---|---|
-| Index et analyse | sous-agent `remporte:lecteur-dce` | donne-lui le chemin du dossier ; il écrit `00-index.md` et `02-analyse.md` |
+| Index et analyse | sous-agent `remporte:lecteur-dce` | skill `remporte:lecture-dce`, procédure [lecture du DCE](../../references/lecture-dce.md) |
 | Go/No-Go | toi, avec l'utilisateur | `remporte guide go-no-go`, à partir de l'analyse et de `remporte fiche` |
 | Plan | toi | `remporte guide plan` |
-| Rédaction | un sous-agent `remporte:redacteur-section` par section | lance-les par lots de trois ou quatre en parallèle, les plus pondérées d'abord ; coche le plan quand chacun a rendu |
-| Relecture | sous-agent `remporte:relecteur` | il écrit `05-relecture.md` ; toi, tu appliques les corrections |
+| Rédaction | sous-agent `remporte:redacteur-section` | skill `remporte:redaction-section`, procédure [rédaction d'une section](../../references/redaction-section.md) |
+| Relecture | sous-agent `remporte:relecteur` | skill `remporte:relecture-ao`, procédure [relecture](../../references/relecture-ao.md) |
 | Export | toi | `remporte exporter` |
 
-Sans sous-agents disponibles, fais toi-même chaque étape avec
-`remporte guide <étape>`, dans le même ordre.
+Donne à chaque lecteur le chemin du dossier ; il écrit `00-index.md` et `02-analyse.md`. Pour la rédaction, donne une section par agent et lance-les par lots de trois ou quatre si les outils disponibles le permettent, les plus pondérées d'abord. Coche le plan après réception de chaque section. Le relecteur écrit `05-relecture.md` ; tu appliques ensuite ses corrections.
+
+Si un agent spécialisé est indisponible, transmets la procédure correspondante et le chemin du dossier à un sous-agent générique si l’environnement en propose un. Sinon, exécute toi-même cette étape avec `remporte guide <étape>`, dans le même ordre. Pour la rédaction et la relecture, applique le même recours. Pendant la relecture, ne modifie aucune section.
 
 Trois arrêts obligatoires, quel que soit le mode choisi :
 

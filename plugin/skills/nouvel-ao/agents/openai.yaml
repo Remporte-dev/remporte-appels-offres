@@ -1,0 +1,6 @@
+interface:
+  display_name: "Nouvel appel d'offres"
+  short_description: "Conduire la réponse à un nouvel appel d'offres"
+  default_prompt: "Conduis la réponse au DCE avec les validations prévues à l'analyse, au go/no-go et au plan."
+policy:
+  allow_implicit_invocation: false

@@ -5,15 +5,16 @@ description: Répondre à un appel d'offres public (DCE, RC, CCTP, mémoire tech
 
 # Répondre à un appel d'offres
 
-Ce plugin fait tourner l'outil `remporte` sur l'ordinateur de l'utilisateur. Si tu ne peux pas lancer de commande (par exemple dans une conversation sur claude.ai), ne tente rien d'autre et réponds seulement :
-« Ce plugin fonctionne dans Claude Code ou dans Cowork, sur votre ordinateur : il a besoin de lire vos fichiers et de lancer l'outil Remporte. Ouvrez-le là-bas pour continuer. »
+Vérifie que tu peux lancer des commandes et lire/écrire les fichiers du dossier choisi. Il faut les deux capacités. Si l'une manque, explique que cette tâche demande un environnement avec accès aux commandes et aux fichiers, comme Codex, Claude Code/Cowork ou ChatGPT Work disposant de cet accès. Ne poursuis pas sans ces capacités.
 
-- Première utilisation sur ce poste (commande `remporte` absente, ou pas de
-  fiche entreprise : `remporte fiche` échoue) : propose `/remporte:init`.
-- Nouveau DCE : propose `/remporte:nouvel-ao`, ou suis directement son
+- Première utilisation dans cet environnement (commande `remporte` absente, ou pas de
+  fiche entreprise : `remporte fiche` échoue) : propose `$remporte:init` dans Codex ou `/remporte:init` dans Claude Code.
+- Nouveau DCE : propose `$remporte:nouvel-ao` dans Codex ou `/remporte:nouvel-ao` dans Claude Code, ou suis directement son
   parcours.
 - Dossier de réponse déjà commencé : `remporte etat`, puis
   `remporte guide <étape>`.
 
 N'invente jamais une information sur l'entreprise : `remporte fiche`,
 `remporte base chercher`, ou `[à compléter : …]`.
+
+Remporte CLI est une dépendance externe. Vérifie sa présence avec `remporte --version`. S'il manque, indique que le plugin ne l'installe pas et propose le parcours d'installation de `$remporte:init` ou `/remporte:init`, qui demande l'accord avant `uv tool install remporte`.

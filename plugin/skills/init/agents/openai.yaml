@@ -1,0 +1,6 @@
+interface:
+  display_name: "Mise en route Remporte"
+  short_description: "Installer Remporte CLI et préparer les documents de l'entreprise"
+  default_prompt: "Prépare l'espace Remporte, vérifie le CLI et indexe les documents de l'entreprise."
+policy:
+  allow_implicit_invocation: false

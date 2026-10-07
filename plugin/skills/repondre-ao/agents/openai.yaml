@@ -1,0 +1,6 @@
+interface:
+  display_name: "Répondre à un appel d'offres"
+  short_description: "Analyser ou rédiger une réponse à un appel d'offres"
+  default_prompt: "Aide-moi à avancer sur cet appel d'offres avec Remporte."
+policy:
+  allow_implicit_invocation: true

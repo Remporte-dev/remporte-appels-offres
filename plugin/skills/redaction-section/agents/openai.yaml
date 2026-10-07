@@ -1,0 +1,6 @@
+interface:
+  display_name: "Rédaction de section"
+  short_description: "Rédiger une section du mémoire technique"
+  default_prompt: "Rédige la section indiquée du mémoire Remporte avec des preuves sourcées et sans rien inventer."
+policy:
+  allow_implicit_invocation: false

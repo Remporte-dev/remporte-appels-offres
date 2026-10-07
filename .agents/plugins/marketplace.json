@@ -1,0 +1,20 @@
+{
+  "name": "remporte",
+  "interface": {
+    "displayName": "Remporte"
+  },
+  "plugins": [
+    {
+      "name": "remporte",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 ---
 name: init
-description: Mise en route de Remporte, une seule fois par poste. Vérifie l'outil, indexe les documents de l'entreprise (références, CV, certifications, anciens mémoires) et contrôle qu'il ne manque rien d'essentiel pour répondre aux appels d'offres. À lancer quand l'utilisateur tape /remporte:init ou découvre l'outil.
+description: Mise en route de Remporte, une fois par environnement. Vérifie l'outil, indexe les documents de l'entreprise (références, CV, certifications, anciens mémoires) et contrôle qu'il ne manque rien d'essentiel pour répondre aux appels d'offres. À lancer quand l'utilisateur tape /remporte:init ou découvre l'outil.
 disable-model-invocation: true
 ---
+
+Pour Codex, cette compétence peut être appelée comme `$remporte:init` ou à la demande naturelle de mise en route. `/remporte:init` est un exemple de commande propre à Claude Code.
 
 # Mise en route de Remporte
 
@@ -10,26 +12,25 @@ Tu accompagnes l'utilisateur pas à pas. Une étape à la fois : annonce-la en u
 phrase, fais-la, montre le résultat, puis passe à la suivante. Parle en
 français simple, sans jargon informatique.
 
-## 0. Un terminal est-il disponible ?
+## 0. Les commandes et les fichiers sont-ils accessibles ?
 
-Ce plugin fait tourner l'outil `remporte` sur l'ordinateur de l'utilisateur. Si tu ne peux pas lancer de commande (par exemple dans une conversation sur claude.ai), ne tente rien d'autre et réponds seulement :
-« Ce plugin fonctionne dans Claude Code ou dans Cowork, sur votre ordinateur : il a besoin de lire vos fichiers et de lancer l'outil Remporte. Ouvrez-le là-bas pour continuer. »
+Vérifie que tu peux lancer une commande et lire/écrire les fichiers du dossier choisi. Il faut les deux capacités. Si l'une manque, explique que cette tâche demande un environnement avec accès aux commandes et aux fichiers, comme Codex, Claude Code/Cowork ou ChatGPT Work disposant de cet accès. Ne poursuis pas les opérations locales.
 
 ## 1. L'outil est-il installé ?
 
-Lance `remporte --version`.
+Lance `remporte --version` pour vérifier la dépendance externe Remporte CLI.
 
 - S'il répond : passe à l'étape 2.
-- Sinon : explique qu'il faut installer l'outil `remporte` (gratuit, rien ne
-  quitte le poste), et **demande l'accord de l'utilisateur** avant de lancer :
+- Sinon : explique que Remporte CLI est une dépendance externe et propose son
+  installation. Demande l'accord de l'utilisateur avant de lancer :
   `uv tool install remporte`.
-  Si `uv` est absent lui aussi, donne-lui la page d'installation de uv
+  Ne promets pas que l'installation du plugin installe le CLI. Si `uv` est absent, donne-lui la page d'installation de uv
   (https://docs.astral.sh/uv/getting-started/installation/) et attends qu'il
   l'ait installé ; ne lance pas toi-même un script d'installation téléchargé.
 
 ## 2. L'espace de travail
 
-Tout le travail vit dans un seul dossier, chez l'utilisateur :
+Tout le travail vit dans un seul dossier, dans l'environnement choisi :
 `ressources/` pour les documents de l'entreprise et la fiche, `DCEs/` pour un
 sous-dossier par appel d'offres. Demande où le créer : par défaut
 `~/Remporte`, ou un dossier partagé avec son équipe (Drive, SharePoint).
@@ -84,5 +85,5 @@ Termine en trois lignes :
 - la base et la fiche sont prêtes ; on réindexe avec la même commande quand
   les documents changent, et on met la fiche à jour à chaque exercice clos ou
   nouvelle référence ;
-- pour répondre à un appel d'offres : `/remporte:nouvel-ao` ;
+- pour répondre à un appel d'offres : demandez `$remporte:nouvel-ao` dans Codex, ou utilisez `/remporte:nouvel-ao` dans Claude Code ;
 - `remporte guide modeles` explique comment économiser son abonnement.

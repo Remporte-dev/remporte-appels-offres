@@ -9,15 +9,14 @@
 [![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
 [![Codex, Gemini CLI, Pi](https://img.shields.io/badge/agents-Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Pi-c2410c)](#avec-codex-gemini-cli-pi-ou-un-autre-agent)
 
-**Un CLI et un plugin Claude Code, gratuits et open source, pour répondre à un marché
+**Un CLI et un plugin pour Claude Code, Codex et ChatGPT Work, gratuits et open source, pour répondre à un marché
 public français avec votre agent IA** : lecture du DCE, analyse, go/no-go, plan du mémoire
 technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4 et exports
 Word, HTML et Excel.
 
 Vous donnez le zip du DCE. Votre agent (Claude Code, Codex, Gemini CLI, Pi…) lit les pièces,
 suit une méthode écrite par des gens qui répondent à des appels d'offres, et produit un
-dossier de réponse que vous relisez. Tout reste sur votre poste : pas de compte, pas de
-serveur, et le raisonnement passe par votre propre abonnement.
+dossier de réponse que vous relisez. Les fichiers sont lus dans l’environnement choisi, qui peut être local ou cloud. Le raisonnement passe par votre fournisseur d’agent et suit ses conditions de traitement.
 
 Un outil de [Remporte](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=entete),
 le logiciel de réponse aux appels d'offres.
@@ -56,9 +55,7 @@ macOS, Linux et Windows ; signalez-nous tout problème.
 
 ### Avec Claude Code
 
-Le dépôt contient aussi un plugin Claude Code (dossier [`plugin/`](https://github.com/Remporte-dev/remporte-appels-offres/tree/main/plugin)). Il fonctionne
-dans Claude Code et dans Cowork, sur votre ordinateur, pas dans une conversation sur claude.ai :
-il a besoin d'un terminal pour lancer l'outil.
+Le dépôt contient un plugin Claude Code (dossier [`plugin/`](https://github.com/Remporte-dev/remporte-appels-offres/tree/main/plugin)). Claude Code utilise les commandes `/remporte:init` et `/remporte:nouvel-ao`. Ces commandes sont propres à Claude Code. Claude Code et Cowork doivent disposer des commandes et de l’accès aux fichiers concernés.
 
 ```
 /plugin marketplace add Remporte-dev/remporte-appels-offres
@@ -67,7 +64,7 @@ il a besoin d'un terminal pour lancer l'outil.
 
 Puis deux commandes :
 
-- **`/remporte:init`**, une fois par poste : vérifie l'installation, indexe les documents de
+- **`/remporte:init`**, une fois par environnement : vérifie l'installation, indexe les documents de
   votre entreprise et construit la fiche entreprise que liront tous les agents ;
 - **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le dossier et conduit
   le parcours avec vous, avec trois arrêts de validation (analyse, go/no-go, plan).
@@ -90,9 +87,32 @@ l'abonnement :
 | `redacteur-section` | Rédige une section du mémoire à partir du plan, de l'analyse et de vos documents |
 | `relecteur` | Relit le mémoire terminé avec la grille de l'acheteur, sans l'avoir rédigé |
 
-### Avec Codex, Gemini CLI, Pi ou un autre agent
+### Avec Codex et ChatGPT Work
 
-Tout agent capable de lancer une commande peut s'en servir :
+Pour tester le plugin dans Codex depuis un clone de ce dépôt :
+
+```bash
+codex plugin marketplace add /chemin/vers/remporte-appels-offres
+codex plugin add remporte@remporte
+```
+
+Ouvrez ensuite une nouvelle conversation et utilisez `$remporte:init` ou
+`$remporte:nouvel-ao <chemin du DCE>`. Vous pouvez aussi demander « Aide-moi à répondre à
+cet appel d'offres » : la skill `remporte:repondre-ao` prend le relais.
+
+Le catalogue OpenAI est dans `.agents/plugins/marketplace.json`. Dans l'application
+ChatGPT de bureau, choisissez cette source locale dans l'annuaire des plugins lorsqu'elle
+est disponible. L'archive OpenAI peut aussi être importée comme plugin privé ou soumise
+à l'annuaire ; sa création seule ne l'installe pas dans un compte ChatGPT.
+
+ChatGPT Work doit disposer des commandes et des fichiers nécessaires. Vérifiez
+`remporte --version` dans cet environnement ; l'installation du plugin n'installe pas
+l'outil. Un environnement cloud ne voit que les fichiers qui y sont fournis. Une conversation
+sans accès aux commandes ne peut pas exécuter ce parcours.
+
+### Avec Gemini CLI, Pi ou un autre agent
+
+Tout agent qui peut lancer des commandes et lire/écrire les fichiers concernés peut s’en servir :
 
 ```bash
 remporte espace ~/Remporte                  # une fois : crée ressources/ et DCEs/
@@ -102,7 +122,7 @@ remporte init ~/Téléchargements/DCE.zip     # crée DCEs/DCE/
 cd DCEs/DCE && codex                        # ou claude, gemini, pi…
 ```
 
-Puis demandez : « réponds à cet appel d'offres ». Chaque dossier contient un `AGENTS.md` (et
+Chaque dossier contient un `AGENTS.md` (et
 un `CLAUDE.md`) qui donne la marche à suivre à l'agent.
 
 ## Comment ça marche
@@ -141,8 +161,7 @@ Remporte/
     2026-05-mairie-voirie/   un dossier par appel d'offres
 ```
 
-Un seul dossier, sur votre poste ou dans un dossier partagé. On retrouve chaque réponse, son
-index et son analyse au même endroit.
+Un seul dossier, dans l’environnement choisi ou un dossier partagé accessible. On retrouve chaque réponse, son index et son analyse au même endroit.
 
 ## Les commandes
 
@@ -177,14 +196,9 @@ Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat stru
 
 ## Confidentialité
 
-Le CLI s'exécute entièrement sur votre poste. Il ne crée aucun compte, **n'effectue aucun
-appel réseau** et ne mesure pas son usage. Vos DCE et vos documents restent dans les dossiers
-que vous choisissez. Le raisonnement est fait par votre agent, selon les conditions de son
-éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
+Le CLI s’exécute dans l’environnement où vous le lancez et lit les fichiers accessibles dans cet environnement. En local, ils peuvent être sur votre poste. En cloud, ils sont dans l’environnement cloud choisi et ne sont pas forcément présents sur votre poste. Le raisonnement est fait par votre agent, selon les conditions de son éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
 
-**Ce que le plugin Claude Code exécute** : l'outil `remporte` sur votre poste, et rien d'autre.
-Si l'outil est absent, `/remporte:init` propose de l'installer (`uv tool install remporte`,
-depuis PyPI) et attend votre accord. Le plugin ne contient ni hook ni serveur MCP.
+**Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
 
 ## Ce que le CLI ne fait pas
 
@@ -223,8 +237,22 @@ git clone https://github.com/Remporte-dev/remporte-appels-offres && cd remporte-
 uv run pytest -q
 ```
 
-Le CLI est dans `src/remporte/`, le plugin Claude Code (skills, sous-agents, manifeste) dans
-`plugin/`.
+Le CLI est dans `src/remporte/`. Le dossier `plugin/` contient les skills communes, les
+procédures dans `references/`, les agents Claude dans `agents/`, et les manifests natifs
+Claude et OpenAI. La méthode métier a une seule source ; chaque plateforme dispose de ses
+points d'entrée et de ses métadonnées.
+
+Pour produire les deux archives à partir de cette source :
+
+```bash
+uv run python scripts/package_plugin.py --platform claude --output dist/remporte-claude.zip
+uv run python scripts/package_plugin.py --platform openai --output dist/remporte-openai.zip
+```
+
+L'archive Claude conserve ses agents et son manifeste. L'archive OpenAI inclut les six
+skills et leurs métadonnées, les procédures communes et les manifests OpenAI. Les dépendances
+du CLI sont déclarées dans `pyproject.toml` ; aucune n'est installée par l'archive du plugin.
+Le script refuse d'écraser une archive existante.
 
 Dépendances sous licences permissives uniquement (MIT, BSD, Apache).
 

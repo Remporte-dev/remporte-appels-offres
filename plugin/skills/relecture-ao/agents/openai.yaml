@@ -1,0 +1,6 @@
+interface:
+  display_name: "Relecture du mémoire"
+  short_description: "Relire le mémoire avec la grille de l'acheteur"
+  default_prompt: "Relis le mémoire Remporte selon les critères de l'acheteur et liste les corrections à appliquer."
+policy:
+  allow_implicit_invocation: false

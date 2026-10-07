@@ -1,4 +1,4 @@
-"""Le plugin Claude Code reste conforme aux contrôles de l'annuaire Claude."""
+"""Les éléments Claude Code restent valides dans la source du plugin commun."""
 
 import json
 import re
@@ -29,7 +29,7 @@ def test_fichiers_lisibles_par_le_controle_automatique():
     for fichier in fichiers:
         assert not fichier.is_symlink(), fichier
         assert fichier.name not in {".DS_Store", "Thumbs.db", "desktop.ini"}, fichier
-        assert fichier.suffix in {".md", ".json", ""}, fichier
+        assert fichier.suffix in {".md", ".json", ".yaml", ""}, fichier
         assert fichier.stat().st_size < 256 * 1024, fichier
 
 
