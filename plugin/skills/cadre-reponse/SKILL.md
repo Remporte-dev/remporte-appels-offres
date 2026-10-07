@@ -17,7 +17,8 @@ Suis `remporte guide cadre-reponse` :
    (`remporte guide excel`).
 5. `remporte exporter` : la matrice de conformité, à relire avec l'utilisateur.
 
-Travaille dans le dossier de réponse (celui qui contient `.remporte/`), ou ajoute
-`--dossier "<chemin>"` aux commandes. Pas encore de dossier : `$remporte:nouvel-ao` dans Codex ou `/remporte:nouvel-ao` dans Claude Code.
+Exécute les commandes depuis le dossier de réponse (celui qui contient `.remporte/`).
+Depuis un autre dossier, utilise `--dossier "<chemin>"` seulement si l'aide de la commande
+propose cette option ; `remporte guide <étape>` ne la prend pas. Pas encore de dossier : `$remporte:nouvel-ao` dans Codex ou `/remporte:nouvel-ao` dans Claude Code.
 N'invente jamais une information sur l'entreprise : `remporte fiche`,
 `remporte base chercher`, ou `[à compléter : …]`.
