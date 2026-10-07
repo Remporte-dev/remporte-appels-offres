@@ -17,7 +17,7 @@ Lance `remporte --version`.
 - S'il répond : passe à l'étape 2.
 - Sinon : explique qu'il faut installer l'outil `remporte` (gratuit, rien ne
   quitte le poste), et **demande l'accord de l'utilisateur** avant de lancer :
-  `uv tool install git+https://github.com/Remporte-dev/remporte-appels-offres`.
+  `uv tool install remporte`.
   Si `uv` est absent lui aussi, donne-lui la page d'installation de uv
   (https://docs.astral.sh/uv/getting-started/installation/) et attends qu'il
   l'ait installé ; ne lance pas toi-même un script d'installation téléchargé.

@@ -3,6 +3,7 @@
 <p align="center"><img src="https://raw.githubusercontent.com/Remporte-dev/remporte-appels-offres/main/docs/remporte-cli.png" alt="Remporte CLI : le CLI appels d'offres pour votre agent IA, du DCE au mémoire technique, avec Claude Code, Codex ou Gemini CLI" width="100%"></p>
 
 [![Tests](https://github.com/Remporte-dev/remporte-appels-offres/actions/workflows/tests.yml/badge.svg)](https://github.com/Remporte-dev/remporte-appels-offres/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/remporte?color=1d2b50)](https://pypi.org/project/remporte/)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-1d2b50)](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-1d2b50)](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/pyproject.toml)
 [![Plugin Claude Code](https://img.shields.io/badge/plugin-Claude%20Code-c2410c)](#avec-claude-code)
@@ -45,8 +46,8 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 ## Installation
 
 ```bash
-uv tool install git+https://github.com/Remporte-dev/remporte-appels-offres
-# ou : pipx install git+https://github.com/Remporte-dev/remporte-appels-offres
+uv tool install remporte
+# ou : pipx install remporte
 remporte --version
 ```
 
