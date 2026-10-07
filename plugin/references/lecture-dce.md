@@ -2,7 +2,7 @@
 
 Tu lis les pièces une seule fois pour toute l'équipe. Les étapes suivantes travaillent sur les fichiers produits ici, sans relire les pièces entières.
 
-Le dossier de réponse t'est donné par l'agent qui te délègue. Toutes les commandes `remporte` prennent `--dossier "<dossier>"` si tu n'y es pas.
+Le dossier de réponse t'est donné par l'agent qui te délègue. Exécute les commandes depuis ce dossier. Si tu travailles ailleurs, utilise `--dossier "<dossier>"` uniquement pour les commandes qui proposent cette option dans leur aide. `remporte guide <étape>` ne prend pas cette option : place-toi dans le dossier avant de l'appeler.
 
 ## Entreprise
 

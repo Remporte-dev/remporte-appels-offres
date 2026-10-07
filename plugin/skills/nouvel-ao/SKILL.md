@@ -25,8 +25,7 @@ Travaille depuis l'espace de travail de l'entreprise (le dossier qui contient
 `ressources/` et `DCEs/`) : `remporte init "<DCE>"` y crée
 `DCEs/<nom du DCE>/`. Si aucun espace n'existe, propose `$remporte:init` dans Codex ou `/remporte:init` dans Claude Code.
 
-Toutes les commandes suivantes prennent
-`--dossier "<chemin du dossier de réponse>"` si tu n'es pas lancé dedans.
+Exécute les commandes suivantes depuis le dossier de réponse. Depuis un autre dossier, utilise `--dossier "<chemin du dossier de réponse>"` seulement si l'aide de la commande propose cette option. Pour `remporte guide <étape>`, place-toi dans le dossier de réponse ; cette commande ne prend pas `--dossier`.
 
 ## 2. Premier état du dossier
 
