@@ -77,7 +77,7 @@ Rouvrez l’agent après la mise à jour. Les dossiers d’entreprise et de rép
 
 ## Gemini CLI
 
-Décompressez l'archive Gemini, puis installez le dossier `remporte/` qui contient le manifeste :
+Décompressez l'archive Gemini dans un nouveau dossier `remporte`, puis installez ce dossier : le manifeste `gemini-extension.json` est à sa racine.
 
 ```bash
 gemini extensions install /chemin/vers/remporte

@@ -43,6 +43,11 @@ _CONTEXTES_AGENT = {
 }
 _SUFFIXE_NEUTRALISE = ".piece-dce.txt"
 
+# Bornes de conversion : un fichier de quelques Ko peut déclarer des millions de cellules.
+_MAX_CELLULES = 500_000
+_MAX_PAGES_PDF = 3_000
+_TRONQUE = "> Pièce tronquée à la lecture : {motif}. Ouvrez l'original pour la suite."
+
 
 @dataclass
 class Conversion:
@@ -261,9 +266,10 @@ def _convertir_pdf(piece: Path) -> Conversion:
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(str(piece))
+    tronque = len(pdf) > _MAX_PAGES_PDF
     try:
         pages: list[str] = []
-        for numero in range(len(pdf)):
+        for numero in range(min(len(pdf), _MAX_PAGES_PDF)):
             page = pdf[numero]
             texte = page.get_textpage().get_text_bounded()
             pages.append(texte.strip() if texte else "")
@@ -283,6 +289,9 @@ def _convertir_pdf(piece: Path) -> Conversion:
     for numero, texte in enumerate(pages[1:], start=2):
         parties.append(f"<!-- page {numero} -->")
         parties.append(texte)
+    if tronque:
+        _avertir(f"{piece} : lecture arrêtée à {_MAX_PAGES_PDF} pages")
+        parties.append(_TRONQUE.format(motif=f"plus de {_MAX_PAGES_PDF} pages"))
     texte = "\n\n".join(parties).strip()
     texte = texte.replace("\r\n", "\n").replace("\r", "\n")
     return Conversion(texte, "ok", len(pages), None)
@@ -426,11 +435,17 @@ def _convertir_xlsx(piece: Path) -> Conversion:
 
     # data_only=True : les formules non évaluées donnent leur valeur en cache.
     classeur = load_workbook(str(piece), read_only=True, data_only=True)
+    restantes = _MAX_CELLULES
     try:
         sections: list[str] = []
         for feuille in classeur.worksheets:
+            if restantes <= 0:
+                break
             lignes: list[list[str]] = []
             for ligne in feuille.iter_rows(values_only=True):
+                restantes -= max(1, len(ligne))
+                if restantes < 0:
+                    break
                 cellules = [
                     "" if valeur is None else str(valeur)
                     for valeur in ligne
@@ -445,6 +460,9 @@ def _convertir_xlsx(piece: Path) -> Conversion:
                 )
     finally:
         classeur.close()
+    if restantes < 0:
+        _avertir(f"{piece} : lecture arrêtée à {_MAX_CELLULES} cellules")
+        sections.append(_TRONQUE.format(motif=f"plus de {_MAX_CELLULES} cellules"))
     texte = "\n\n".join(sections)
     if not texte.strip():
         return Conversion("", "vide", None, "classeur sans valeurs")
@@ -466,12 +484,16 @@ def _odf_repetition(element, attribut: str) -> int:
     return max(1, min(nombre, _ODF_REPETITION_MAX))
 
 
-def _lignes_feuille_ods(table) -> list[list[str]]:
+def _lignes_feuille_ods(table, budget: list[int] | None = None) -> list[list[str]]:
+    """Lignes d'une feuille ODS. `budget` : [cellules encore lisibles], décrémenté."""
     from odf import teletype
     from odf.table import TableCell, TableRow
 
+    budget = budget if budget is not None else [_MAX_CELLULES]
     lignes: list[list[str]] = []
     for ligne in table.getElementsByType(TableRow):
+        if budget[0] < 0:
+            break
         cellules: list[str] = []
         for cellule in ligne.getElementsByType(TableCell):
             texte = teletype.extractText(cellule).strip()
@@ -484,6 +506,9 @@ def _lignes_feuille_ods(table) -> list[list[str]]:
         repetition_ligne = _odf_repetition(ligne, "numberrowsrepeated")
         if not any(cellules):
             repetition_ligne = 1
+        budget[0] -= max(1, len(cellules)) * repetition_ligne
+        if budget[0] < 0:
+            break
         lignes.extend([list(cellules) for _ in range(repetition_ligne)])
     while lignes and not any(lignes[-1]):
         lignes.pop()
@@ -496,11 +521,17 @@ def _convertir_ods(piece: Path) -> Conversion:
 
     document = load(str(piece))
     sections: list[str] = []
+    budget = [_MAX_CELLULES]
     for table in document.getElementsByType(Table):
-        lignes = [ligne for ligne in _lignes_feuille_ods(table) if any(ligne)]
+        if budget[0] < 0:
+            break
+        lignes = [ligne for ligne in _lignes_feuille_ods(table, budget) if any(ligne)]
         if lignes:
             nom = table.getAttribute("name") or "sans nom"
             sections.append(f"## Feuille {nom}\n\n" + _tableau_vers_md(lignes))
+    if budget[0] < 0:
+        _avertir(f"{piece} : lecture arrêtée à {_MAX_CELLULES} cellules")
+        sections.append(_TRONQUE.format(motif=f"plus de {_MAX_CELLULES} cellules"))
     texte = "\n\n".join(sections)
     if not texte.strip():
         return Conversion("", "vide", None, "classeur sans valeurs")

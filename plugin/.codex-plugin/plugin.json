@@ -31,7 +31,11 @@
       "Write"
     ],
     "websiteURL": "https://remporte.fr/outils/agent-ia/",
-    "privacyPolicyURL": "https://remporte.fr/politique-confidentialite/#outil-agent-ia",
+    "supportURL": "https://github.com/Remporte-dev/remporte-appels-offres/issues",
+    "privacyPolicyURL": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png",
     "defaultPrompt": [
       "Prépare mon espace de réponse aux appels d’offres.",
       "Accompagne-moi pour répondre à cet appel d’offres."

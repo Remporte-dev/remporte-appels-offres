@@ -361,11 +361,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "markdown", specifier = ">=3.6" },
-    { name = "odfpy", specifier = ">=1.4" },
-    { name = "openpyxl", specifier = ">=3.1" },
-    { name = "pypdfium2", specifier = ">=4.30" },
-    { name = "python-docx", specifier = ">=1.1" },
+    { name = "markdown", specifier = ">=3.6,<4" },
+    { name = "odfpy", specifier = ">=1.4,<2" },
+    { name = "openpyxl", specifier = ">=3.1,<4" },
+    { name = "pypdfium2", specifier = ">=4.30,<6" },
+    { name = "python-docx", specifier = ">=1.1,<2" },
 ]
 
 [package.metadata.requires-dev]

@@ -88,3 +88,16 @@ def test_pages_sous_politique_de_securite():
     dossier = export._page_html([("Analyse", "<p>A</p>")], [])
     assert "Content-Security-Policy" in dossier and "script-src 'sha256-" in dossier
     assert "onclick" not in dossier
+
+
+def test_tableur_demesure_tronque(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(lecture, "_MAX_CELLULES", 100)
+    classeur = Workbook()
+    feuille = classeur.active
+    feuille["A1"] = "Prix"
+    feuille["E200"] = "fin"  # 200 lignes × 5 colonnes à parcourir
+    chemin = tmp_path / "bpu.xlsx"
+    classeur.save(chemin)
+    conversion = lecture.convertir(chemin)
+    assert conversion.statut == "ok" and "Prix" in conversion.texte
+    assert "Pièce tronquée" in conversion.texte and "fin" not in conversion.texte

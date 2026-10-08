@@ -32,7 +32,7 @@ def test_export_extracts_portable_self_contained_skills(tmp_path, platform):
     extract = tmp_path / "extracted"
     with zipfile.ZipFile(archive_path) as archive:
         archive.extractall(extract)
-    root = extract / "remporte"
+    root = extract if platform == "gemini" else extract / "remporte"
     skill_dirs = sorted((root / "skills").iterdir())
     assert {p.name for p in skill_dirs} == SKILL_NAMES
     for directory in skill_dirs:

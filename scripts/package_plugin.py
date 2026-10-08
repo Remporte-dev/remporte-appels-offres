@@ -5,9 +5,23 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _hors_git(dossier: Path) -> list[str]:
+    """Fichiers du dossier que git ne suit pas (non ajoutés ou ignorés) : ils ne doivent
+    jamais partir dans une archive publiée. Vide si le dossier est hors du dépôt."""
+    dossier = dossier.resolve()
+    if ROOT.resolve() not in (dossier, *dossier.parents):
+        return []
+    sortie = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--others", "-z", "--", str(dossier)],
+        capture_output=True, check=True,
+    ).stdout.decode("utf-8")
+    return [nom for nom in sortie.split("\0") if nom and "__pycache__" not in nom]
 
 
 def package_plugin(platform: str, output: Path, plugin: Path | None = None) -> Path:
@@ -19,6 +33,8 @@ def package_plugin(platform: str, output: Path, plugin: Path | None = None) -> P
         raise ValueError("L'archive doit être écrite hors du dossier plugin")
     if output.exists():
         raise FileExistsError(output)
+    if hors_git := _hors_git(plugin):
+        raise ValueError(f"Fichiers non suivis par git dans le plugin : {', '.join(hors_git)}")
     manifest_path = (".claude-plugin/plugin.json" if platform == "claude" else "plugin.json")
     manifest = json.loads((plugin / manifest_path).read_text(encoding="utf-8"))
     if manifest.get("name") != "remporte" or not manifest.get("version"):

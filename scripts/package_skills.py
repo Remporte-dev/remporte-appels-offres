@@ -6,12 +6,26 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _hors_git(dossier: Path) -> list[str]:
+    """Fichiers du dossier que git ne suit pas (non ajoutés ou ignorés) : ils ne doivent
+    jamais partir dans une archive publiée. Vide si le dossier est hors du dépôt."""
+    dossier = dossier.resolve()
+    if ROOT.resolve() not in (dossier, *dossier.parents):
+        return []
+    sortie = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--others", "-z", "--", str(dossier)],
+        capture_output=True, check=True,
+    ).stdout.decode("utf-8")
+    return [nom for nom in sortie.split("\0") if nom and "__pycache__" not in nom]
 SKILLS_DIR = ROOT / "plugin" / "skills"
 REFERENCES_DIR = ROOT / "plugin" / "references"
 PLATFORMS = ("gemini", "hermes", "openclaw", "portable", "pi")
@@ -36,6 +50,9 @@ def _validate(output: Path) -> Path:
     for path in (SKILLS_DIR, REFERENCES_DIR, *SKILLS_DIR.rglob("*"), *REFERENCES_DIR.rglob("*")):
         if path.is_symlink():
             raise ValueError(f"refusing symlink in source: {path}")
+    for source in (SKILLS_DIR, REFERENCES_DIR):
+        if hors_git := _hors_git(source):
+            raise ValueError(f"files not tracked by git in source: {', '.join(hors_git)}")
     return target
 
 
@@ -141,6 +158,9 @@ def build_archive(platform: str, output: Path) -> Path:
     entries["remporte/LICENSE"] = (ROOT / "LICENSE").read_bytes()
     entries["remporte/install_skills.py"] = (ROOT / "scripts/install_skills.py").read_bytes()
     target.parent.mkdir(parents=True, exist_ok=True)
+    if platform == "gemini":
+        # La galerie Gemini lit gemini-extension.json à la racine de l'archive.
+        entries = {path.removeprefix("remporte/"): data for path, data in entries.items()}
     with zipfile.ZipFile(target, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path, data in sorted(entries.items()):
             archive.writestr(path, data)
