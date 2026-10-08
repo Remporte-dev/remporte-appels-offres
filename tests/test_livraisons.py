@@ -101,7 +101,8 @@ def test_analyse_html(dossier_pret: Path):
     assert "Méthode :" not in page  # notes de travail du gabarit retirées
     assert "<style>" in page and "</html>" in page  # page autonome complète
     assert _aucune_ressource_externe(page)
-    assert "Préparé avec remporte" in page
+    assert 'class="brand"' in page  # logo de la charte
+    assert "remporte.fr" not in page and "utm_" not in page  # aucun contenu promotionnel
 
 
 def test_feuille_de_route_html(dossier_pret: Path):
@@ -227,12 +228,11 @@ def test_commande_html(tmp_path):
     page = (tmp_path / "note.html").read_text(encoding="utf-8")
     assert "<title>Note de synthèse</title>" in page and "<td>40 %</td>" in page
     assert "#1d2b50" in page and _aucune_ressource_externe(page)
-    assert "utm_content=page-html" in page  # lien d'information vers le site
+    assert "remporte.fr" not in page and "utm_" not in page  # aucun contenu promotionnel
 
 
 def _aucune_ressource_externe(page: str) -> bool:
-    """Page autonome : aucune image, feuille de style ou script chargé du réseau.
-    Un lien cliquable vers le site Remporte est permis."""
+    """Page autonome : aucune image, feuille de style ou script chargé du réseau."""
     return not any(motif in page for motif in ('src="http', "<link", "url(http", "@import"))
 
 

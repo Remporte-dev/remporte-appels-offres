@@ -30,6 +30,19 @@ _JUNK = {"__MACOSX", ".DS_Store"}
 
 _ARCHIVES_NON_DECOMPRESSABLES = {".7z", ".rar"}
 
+# Un DCE vient d'un tiers : bornes de décompression contre les archives piégées.
+_MAX_OCTETS_EXTRAITS = 2 * 1024**3
+_MAX_FICHIERS_EXTRAITS = 20_000
+_MAX_IMBRICATION = 5
+
+# Fichiers que les agents chargent d'eux-mêmes comme consignes quand ils travaillent dans un
+# dossier. Apportés par un DCE, ils sont renommés : leur contenu reste lisible comme pièce.
+_CONTEXTES_AGENT = {
+    "claude.md", "claude.local.md", "agents.md", "agents.override.md", "gemini.md",
+    "copilot-instructions.md",
+}
+_SUFFIXE_NEUTRALISE = ".piece-dce.txt"
+
 
 @dataclass
 class Conversion:
@@ -51,24 +64,27 @@ def _avertir(message: str) -> None:
 def decompresser(source: Path, cible: Path) -> list[Path]:
     """Copie un dossier ou décompresse un .zip (récursif) dans `cible`.
 
-    Protège contre les chemins sortants (zip slip) et saute les fichiers
-    parasites (__MACOSX, .DS_Store). Les .7z/.rar sont copiés tels quels et
-    signalés sur stderr. Rend la liste des fichiers obtenus.
+    Protège contre les chemins sortants (zip slip), les liens symboliques d'un
+    dossier source, les noms piégés et les archives démesurées, et saute les
+    fichiers parasites (__MACOSX, .DS_Store). Les .7z/.rar sont copiés tels
+    quels et signalés sur stderr. Rend la liste des fichiers obtenus.
     """
     source = Path(source)
     cible = Path(cible)
+    budget = _Budget()
     if source.is_dir():
         if cible.exists() and source.samefile(cible):
             return lister_fichiers(cible)  # copier sur soi-même : ne rien faire
-        shutil.copytree(source, cible, dirs_exist_ok=True)
+        shutil.copytree(source, cible, dirs_exist_ok=True, ignore=_ignorer_liens)
     elif zipfile.is_zipfile(source):
         cible.mkdir(parents=True, exist_ok=True)
-        _extraire_zip(source, cible)
+        _extraire_zip(source, cible, budget)
     else:
         # Fichier isolé (par exemple un .7z) : copié tel quel dans cible.
         cible.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, cible / source.name)
-    _dezipper_recursif(cible)
+    _dezipper_recursif(cible, budget)
+    _neutraliser_contextes(cible)
     fichiers = lister_fichiers(cible)
     for fichier in fichiers:
         if fichier.suffix.lower() in _ARCHIVES_NON_DECOMPRESSABLES:
@@ -77,6 +93,42 @@ def decompresser(source: Path, cible: Path) -> list[Path]:
                 "(format non décompressable, utilisez 7-Zip puis relancez init)."
             )
     return fichiers
+
+
+class _Budget:
+    """Ce qu'une même décompression peut encore extraire."""
+
+    def __init__(self) -> None:
+        self.octets = _MAX_OCTETS_EXTRAITS
+        self.fichiers = _MAX_FICHIERS_EXTRAITS
+
+
+def _ignorer_liens(dossier: str, noms: list[str]) -> set[str]:
+    """Pour copytree : un lien symbolique d'un DCE en dossier n'est pas suivi."""
+    liens = {nom for nom in noms if (Path(dossier) / nom).is_symlink()}
+    for nom in sorted(liens):
+        _avertir(f"lien symbolique ignoré dans le DCE : {Path(dossier) / nom}")
+    return liens
+
+
+def _neutraliser_contextes(base: Path) -> None:
+    """Renomme ce qu'un agent prendrait pour ses consignes ou sa configuration :
+    fichiers de contexte (CLAUDE.md, AGENTS.md…) et tout fichier ou dossier caché
+    (.claude/, .codex/, .cursorrules…)."""
+    for chemin in sorted(base.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if _est_junk(chemin) or chemin.is_symlink():
+            continue
+        nom = chemin.name
+        if chemin.is_file() and nom.casefold() in _CONTEXTES_AGENT:
+            nouveau = chemin.with_name(nom + _SUFFIXE_NEUTRALISE)
+        elif nom.startswith("."):
+            nouveau = chemin.with_name("piece-dce-" + nom.lstrip("."))
+        else:
+            continue
+        if nouveau.exists():
+            continue
+        chemin.rename(nouveau)
+        _avertir(f"{chemin} : renommé {nouveau.name} (consignes d'agent apportées par le DCE)")
 
 
 def lister_fichiers(base: Path) -> list[Path]:
@@ -100,10 +152,12 @@ def _chemin_dangereux(nom: str) -> bool:
         return True
     if re.match(r"^[A-Za-z]:", nom):  # lettre de lecteur Windows
         return True
+    if re.search(r"[\x00-\x1f\x7f]", nom):  # retour à la ligne, caractères de contrôle
+        return True
     return False
 
 
-def _extraire_zip(chemin_zip: Path, base: Path) -> None:
+def _extraire_zip(chemin_zip: Path, base: Path, budget: _Budget) -> None:
     """Extrait un .zip membre par membre, en sautant entrées dangereuses."""
     try:
         with zipfile.ZipFile(chemin_zip) as zf:
@@ -113,23 +167,36 @@ def _extraire_zip(chemin_zip: Path, base: Path) -> None:
                 if info.is_dir() or _est_junk(Path(nom)):
                     continue
                 if _chemin_dangereux(nom):
-                    _avertir(f"entrée d'archive refusée (chemin sortant) : {nom}")
+                    _avertir(f"entrée d'archive refusée (chemin sortant ou nom invalide) : {nom!r}")
                     continue
+                if budget.fichiers < 1:
+                    _avertir(f"{chemin_zip} : extraction arrêtée, plus de 20 000 fichiers")
+                    return
+                budget.fichiers -= 1
                 destination = base / nom
                 if base_resolue not in destination.resolve().parents:
                     _avertir(f"entrée d'archive refusée (chemin sortant) : {nom}")
                     continue
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(info) as source, open(destination, "wb") as sortie:
-                    shutil.copyfileobj(source, sortie)
+                    while bloc := source.read(1024 * 1024):
+                        budget.octets -= len(bloc)
+                        if budget.octets < 0:
+                            break
+                        sortie.write(bloc)
+                if budget.octets < 0:
+                    destination.unlink(missing_ok=True)
+                    _avertir(f"{chemin_zip} : extraction arrêtée, plus de 2 Go décompressés")
+                    return
     except (zipfile.BadZipFile, OSError) as erreur:
         _avertir(f"{chemin_zip} : archive non extraite ({erreur})")
 
 
-def _dezipper_recursif(base: Path) -> None:
-    """Décompresse les .zip trouvés sous `base`, y compris zip dans zip."""
+def _dezipper_recursif(base: Path, budget: _Budget) -> None:
+    """Décompresse les .zip trouvés sous `base`, y compris zip dans zip, sur
+    `_MAX_IMBRICATION` niveaux au plus."""
     traites: set[Path] = set()
-    while True:
+    for _ in range(_MAX_IMBRICATION):
         zips = [
             p for p in sorted(base.rglob("*"), key=lambda p: p.as_posix())
             if p.is_file() and p.suffix.lower() == ".zip"
@@ -141,10 +208,13 @@ def _dezipper_recursif(base: Path) -> None:
             traites.add(zip_interne.resolve())
             destination = zip_interne.parent / (zip_interne.stem + "-dezippe")
             destination.mkdir(parents=True, exist_ok=True)
-            _extraire_zip(zip_interne, destination)
+            _extraire_zip(zip_interne, destination, budget)
             zip_interne.unlink(missing_ok=True)
             if not any(destination.rglob("*")):
                 destination.rmdir()
+    if any(p.suffix.lower() == ".zip" for p in base.rglob("*") if p.is_file()):
+        _avertir(f"archives imbriquées sur plus de {_MAX_IMBRICATION} niveaux : "
+                 "les plus profondes restent compressées")
 
 
 def convertir(piece: Path) -> Conversion:

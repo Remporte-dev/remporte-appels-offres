@@ -170,8 +170,6 @@ def test_guide_absent_message_clair(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setattr(module_cli, "_lire_ressource", lambda *parties: None)
     assert main(["guide", "analyse"]) == 1
     assert "Pas encore de guide" in capsys.readouterr().out
-    assert main(["offre"]) == 1
-    assert "Pas encore de guide" in capsys.readouterr().out
 
 
 def test_exporter(tmp_path: Path, zip_dce: Path, capsys):

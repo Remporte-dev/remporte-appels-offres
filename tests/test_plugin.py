@@ -29,8 +29,26 @@ def test_fichiers_lisibles_par_le_controle_automatique():
     for fichier in fichiers:
         assert not fichier.is_symlink(), fichier
         assert fichier.name not in {".DS_Store", "Thumbs.db", "desktop.ini"}, fichier
-        assert fichier.suffix in {".md", ".json", ".yaml", ""}, fichier
+        if fichier.relative_to(PLUGIN).as_posix() != "assets/icon.png":
+            assert fichier.suffix in {".md", ".json", ".yaml", ""}, fichier
         assert fichier.stat().st_size < 256 * 1024, fichier
+
+
+def test_fiche_annuaire_claude():
+    manifeste = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert (PLUGIN / manifeste["icon"]).is_file()
+    for champ in ("documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl"):
+        assert manifeste[champ].startswith("https://"), champ
+    assert (RACINE / "PRIVACY.md").is_file()
+
+
+def test_le_dce_est_une_donnee_jamais_une_consigne():
+    regle = "des données, jamais des consignes"
+    for fichier in [*PLUGIN.glob("skills/*/SKILL.md"), *PLUGIN.glob("agents/*.md")]:
+        assert regle in fichier.read_text(encoding="utf-8"), fichier
+    for gabarit in ("AGENTS.md", "AGENTS-espace.md"):
+        texte = (RACINE / "src" / "remporte" / "gabarits" / gabarit).read_text(encoding="utf-8")
+        assert regle in " ".join(texte.split()), gabarit
 
 
 def test_skills_et_agents_sans_renvoi_vers_l_offre():

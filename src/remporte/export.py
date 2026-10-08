@@ -15,8 +15,6 @@ import json
 import re
 from pathlib import Path
 
-import markdown
-
 from remporte import cadre, charte, espace
 
 
@@ -107,7 +105,7 @@ def _lire_markdown(chemin: Path) -> str:
 
 
 def _vers_html(texte: str) -> str:
-    return markdown.markdown(texte, extensions=["tables"])
+    return charte.html_depuis_markdown(texte, ["tables"])
 
 
 def _a_completer_par_fichier(
@@ -139,10 +137,24 @@ def _releve_a_completer(dossier: Path, sections: list[dict]) -> list[str]:
     ]
 
 
+_SCRIPT_ONGLETS = """
+function afficherOnglet(id) {
+  document.querySelectorAll('.onglet').forEach(
+    function (el) { el.hidden = el.id !== id; });
+  document.querySelectorAll('nav button').forEach(function (b) {
+    b.classList.toggle('actif', b.dataset.cible === id);
+  });
+}
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.addEventListener('click', function () { afficherOnglet(b.dataset.cible); });
+});
+"""
+
 _PAGE = """<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Réponse — dossier de consultation</title>
 <style>
@@ -177,15 +189,7 @@ _PAGE = """<!DOCTYPE html>
 </nav>
 {corps}
 {releve}
-<script>
-function afficherOnglet(id) {{
-  document.querySelectorAll('.onglet').forEach(
-    function (el) {{ el.hidden = el.id !== id; }});
-  document.querySelectorAll('nav button').forEach(function (b) {{
-    b.classList.toggle('actif', b.dataset.cible === id);
-  }});
-}}
-</script>
+<script>{script}</script>
 </body>
 </html>
 """
@@ -197,8 +201,7 @@ _CLASSE_ACTIF = ' class="actif"'
 def _page_html(onglets: list[tuple[str, str]], releve: list[str]) -> str:
     boutons = "\n".join(
         f"<button type='button' data-cible='onglet-{index}'"
-        f"{_CLASSE_ACTIF if index == 0 else ''} "
-        f"onclick=\"afficherOnglet('onglet-{index}')\">"
+        f"{_CLASSE_ACTIF if index == 0 else ''}>"
         f"{html.escape(titre)}</button>"
         for index, (titre, _) in enumerate(onglets)
     )
@@ -216,7 +219,8 @@ def _page_html(onglets: list[tuple[str, str]], releve: list[str]) -> str:
         )
     else:
         bloc_releve = ""
-    return _PAGE.format(boutons=boutons, corps=corps, releve=bloc_releve)
+    return _PAGE.format(boutons=boutons, corps=corps, releve=bloc_releve,
+                        script=_SCRIPT_ONGLETS, csp=charte.csp(_SCRIPT_ONGLETS))
 
 
 # ---------------------------------------------------------------------------
@@ -509,9 +513,17 @@ def _remplir_sections_plan(
 
 def _mettre_en_forme(
         feuille, largeurs: list[int], colonnes_wrappees: tuple[int, ...]) -> None:
-    """En-tête en gras, largeurs lisibles, retour à la ligne sur le texte long."""
+    """En-tête en gras, largeurs lisibles, retour à la ligne sur le texte long.
+
+    Aucune cellule n'est une formule : un texte du DCE qui commence par « = »
+    (`=HYPERLINK(…)`, `=WEBSERVICE(…)`) reste du texte."""
     from openpyxl.styles import Alignment, Font
     from openpyxl.utils import get_column_letter
+
+    for ligne in feuille.iter_rows():
+        for cellule in ligne:
+            if cellule.data_type == "f":
+                cellule.data_type = "s"
 
     for cellule in feuille[1]:
         cellule.font = Font(bold=True)

@@ -34,7 +34,7 @@ def package_plugin(platform: str, output: Path, plugin: Path | None = None) -> P
             continue
         if platform == "claude" and (relative.parts[0] == ".codex-plugin" or relative.as_posix() == "plugin.json" or relative.name == "openai.yaml"):
             continue
-        if path.suffix not in {".md", ".json", ".yaml"} and relative.as_posix() != "LICENSE":
+        if path.suffix not in {".md", ".json", ".yaml"} and relative.as_posix() not in {"LICENSE", "assets/icon.png"}:
             raise ValueError(f"Fichier inattendu dans le plugin : {relative}")
         selected.append((path, relative))
     if not any(relative.name == "SKILL.md" for _, relative in selected):

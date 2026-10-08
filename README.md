@@ -187,7 +187,7 @@ Un seul dossier, dans l’environnement choisi ou un dossier partagé accessible
 | `remporte fiche [--creer]` | Fiche entreprise lue par tous les agents |
 | `remporte exporter` | Analyse, feuille de route et dossier HTML, matrice de conformité Excel |
 | `remporte html <fichier.md>` | Mettre n'importe quel markdown en page HTML |
-| `remporte offre` | Ce que fait Remporte en plus |
+| `remporte guide cle-api` | Ce que donne une clé API Remporte et comment la créer |
 
 Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat structuré.
 

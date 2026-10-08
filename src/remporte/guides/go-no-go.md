@@ -16,7 +16,3 @@ Fichier à remplir : `03-go-no-go.md`.
 4. « Ce qu'il faut réunir » : la liste concrète des documents et
    informations à obtenir de l'entreprise avant de rédiger (attestations,
    CV, références avec contact, chiffres d'affaires, certificats).
-
-Pour aller plus loin : le prix des marchés comparables déjà attribués par cet
-acheteur et le titulaire sortant sont disponibles avec Remporte
-(`remporte offre`).

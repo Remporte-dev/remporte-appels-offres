@@ -9,6 +9,11 @@
   "license": "MIT",
   "homepage": "https://remporte.fr/outils/agent-ia/",
   "repository": "https://github.com/Remporte-dev/remporte-appels-offres",
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://github.com/Remporte-dev/remporte-appels-offres#readme",
+  "supportUrl": "https://github.com/Remporte-dev/remporte-appels-offres/issues",
+  "privacyPolicyUrl": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE",
   "keywords": [
     "appels d'offres",
     "marchés publics",

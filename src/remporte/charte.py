@@ -11,19 +11,19 @@ cette charte : ils restent neutres.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import html
 import re
 from functools import cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import markdown
+from markdown.extensions import Extension
+from markdown.treeprocessors import Treeprocessor
 
 _KIT = Path(__file__).parent / "kit_charte"
-
-PIED_DE_PAGE = (
-    'Préparé avec remporte — <a href="https://remporte.fr/produit?utm_source=cli'
-    '&amp;utm_medium=remporte-cli&amp;utm_content=page-html">remporte.fr</a>'
-)
 
 # Mise en page du texte markdown, avec les seuls jetons du kit.
 _CSS_PAGE = """
@@ -56,6 +56,49 @@ _CSS_PAGE = """
     .doc > h1{break-before:page;border-top:0;padding-top:0;margin-top:0}
   }
 """
+
+
+# Le texte converti vient en partie du DCE, écrit par un tiers : aucun HTML brut, aucun
+# lien actif hors http(s) et mailto, aucune ressource chargée depuis le réseau.
+_SCHEMAS_LIENS = {"", "http", "https", "mailto"}
+
+
+def _schema(url: str) -> str:
+    return urlsplit(re.sub(r"[\x00-\x20\x7f]", "", url)).scheme.lower()
+
+
+class _LiensSurs(Treeprocessor):
+    def run(self, racine):
+        for element in racine.iter():
+            if "href" in element.attrib and _schema(element.attrib["href"]) not in _SCHEMAS_LIENS:
+                del element.attrib["href"]
+            if "src" in element.attrib and _schema(element.attrib["src"]) != "":
+                del element.attrib["src"]
+
+
+class _SansHtmlBrut(Extension):
+    def extendMarkdown(self, md):
+        md.preprocessors.deregister("html_block")
+        md.inlinePatterns.deregister("html")
+        md.treeprocessors.register(_LiensSurs(md), "liens_surs", 0)
+
+
+def csp(script: str | None = None) -> str:
+    """Politique de sécurité des pages produites : rien ne se charge du réseau,
+    seul le script de la page elle-même (par son empreinte) peut s'exécuter."""
+    regle = "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:"
+    if script is None:
+        return regle
+    empreinte = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode()
+    return f"{regle}; script-src 'sha256-{empreinte}'"
+
+
+def html_depuis_markdown(texte: str, extensions: list[str] | None = None) -> str:
+    """Markdown → HTML, sans HTML brut ni lien dangereux : le HTML écrit dans le
+    texte s'affiche comme du texte. Les commentaires (marqueurs `<!-- à remplir -->`,
+    repères de page) restent invisibles, comme avant."""
+    texte = re.sub(r"<!--.*?-->", "", texte, flags=re.S)
+    return markdown.markdown(texte, extensions=[*(extensions or []), _SansHtmlBrut()])
 
 
 @cache
@@ -91,12 +134,12 @@ def page_depuis_markdown(texte: str, titre: str | None = None) -> str:
     titre_page = titre_page or etiquette
     if etiquette == titre_page:
         etiquette = "Document de travail"
-    corps = _composer(markdown.markdown(reste, extensions=["tables", "sane_lists"]))
+    corps = _composer(html_depuis_markdown(reste, ["tables", "sane_lists"]))
     entete = (
         '<header class="doc-head">\n'
         '<div class="grid-bg left"></div><div class="halo left"></div>\n'
         '<div class="container">\n'
-        '<a class="brand" href="https://remporte.fr">remporte<span class="dot">.</span></a>\n'
+        '<span class="brand">remporte<span class="dot">.</span></span>\n'
         f'<span class="kicker">{html.escape(etiquette)}</span>\n'
         f'<h1 class="h1">{html.escape(titre_page)}</h1>\n'
         "</div>\n</header>\n"
@@ -104,10 +147,11 @@ def page_depuis_markdown(texte: str, titre: str | None = None) -> str:
     pied = (
         '<footer class="site-footer"><div class="container">'
         '<span class="brand">remporte<span class="dot">.</span></span>'
-        f"<span>{PIED_DE_PAGE}</span></div></footer>\n"
+        "</div></footer>\n"
     )
     return (
         '<!DOCTYPE html>\n<html lang="fr">\n<head>\n<meta charset="utf-8">\n'
+        f'<meta http-equiv="Content-Security-Policy" content="{csp()}">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(titre or titre_page)}</title>\n"
         f"<style>\n{_feuilles_du_kit()}\n{_CSS_PAGE}</style>\n"

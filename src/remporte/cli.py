@@ -16,7 +16,7 @@ from pathlib import Path
 from remporte import __version__
 from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
-    lien, travail,
+    travail,
 )
 
 
@@ -177,8 +177,6 @@ def _construire_parser() -> argparse.ArgumentParser:
                    help="défaut : même nom, extension .html")
     p.set_defaults(func=_cmd_html)
 
-    p = sous.add_parser("offre", help="l'offre Remporte en un écran")
-    p.set_defaults(func=_cmd_offre)
 
     return parser
 
@@ -281,7 +279,7 @@ def _cmd_init(args) -> int:
     a_remplir = sorted({p["type"] for p in pieces} & espace.PIECES_REMPLISSABLES)
     if a_remplir:
         print(f"  Pièces à remplir dans le format de l'acheteur ({', '.join(a_remplir)}) : "
-              f"disponible avec Remporte, {lien.site('init')}")
+              "voir 01-pieces.md")
     print("Suite : remporte etat")
     return 0
 
@@ -701,6 +699,7 @@ GUIDES_ANNEXES = {
     "excel": "répondre dans un fichier Excel ou Word imposé",
     "candidature": "DC1, DC2, DC4",
     "modeles": "puissance de modèle et sous-agents par tâche",
+    "cle-api": "ce que donne une clé API Remporte et comment la créer",
 }
 
 
@@ -712,7 +711,6 @@ def _cmd_guide(args) -> int:
         print("Selon le dossier :")
         for nom, objet in GUIDES_ANNEXES.items():
             print(f"  remporte guide {nom:<14} {objet}")
-        print("Aussi : remporte offre")
         return 0
     if args.etape not in espace.ETAPES and args.etape not in GUIDES_ANNEXES:
         print(f"Erreur : guide inconnu « {args.etape} ».", file=sys.stderr)
@@ -800,16 +798,4 @@ def _cmd_exporter(args) -> int:
         return 0
     for format_, chemin in resultat.items():
         print(f"{format_} : {chemin}" if chemin else f"{format_} : non produit")
-    print("Base de connaissances de l'équipe, documents au format de votre "
-          f"entreprise, vérification de conformité : avec Remporte, {lien.site('export')}")
-    return 0
-
-
-def _cmd_offre(args) -> int:
-    contenu = _lire_ressource("guides", "offre.md")
-    if contenu is None:
-        print("Pas encore de guide « offre » : il sera livré dans une "
-              "prochaine version du paquet.")
-        return 1
-    print(contenu.rstrip())
     return 0

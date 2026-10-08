@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-from remporte import formats, inventaire, lien, recherche
+from remporte import formats, inventaire, recherche
 from remporte.lecture import convertir, decompresser
 
 ETAPES = ["pieces", "analyse", "go-no-go", "plan", "redaction", "relecture",
@@ -32,6 +32,12 @@ FICHIERS_ETAPES = {
 # Pièces dont le remplissage dans le format de l'acheteur est le métier de
 # Remporte : la ligne correspondante est ajoutée à 01-pieces.md.
 PIECES_REMPLISSABLES = {"AE", "BPU", "DPGF", "DQE"}
+
+def _nom(chemin: str) -> str:
+    """Nom de pièce sûr dans 01-pieces.md : un nom venu du DCE ne casse ni le
+    tableau ni le code en ligne."""
+    return chemin.replace("|", "/").replace("`", "'")
+
 
 _RE_LIGNE_SECTION = re.compile(r"^- \[([ x])\] (\d+)(?:\s*[—–-]+\s*(.*))?$", re.M)
 
@@ -120,14 +126,14 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
         pages = str(piece["pages"]) if piece["pages"] is not None else "—"
         texte = f"{piece['texte']:,}".replace(",", " ") + " car." if piece["texte"] else "—"
         lignes.append(
-            f"| {piece['type']} | {piece['lot'] or '—'} | `dce/{piece['chemin']}` "
+            f"| {piece['type']} | {piece['lot'] or '—'} | `dce/{_nom(piece['chemin'])}` "
             f"| {piece['statut']} | {pages} | {texte} |"
         )
     problemes = [p for p in pieces if p["statut"] != "ok"]
     lignes += ["", "## Pièces non converties", ""]
     if problemes:
         lignes += [
-            f"- `dce/{p['chemin']}` : {p['statut']} — {p['motif'] or 'sans motif'}"
+            f"- `dce/{_nom(p['chemin'])}` : {p['statut']} — {p['motif'] or 'sans motif'}"
             for p in problemes
         ]
     else:
@@ -140,7 +146,7 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
     lignes += ["", "## Formats attendus", ""]
     if constats:
         lignes += [
-            f"- {formats.libelle(c)} — `dce/{c['piece']}` : « {c['extrait']} »"
+            f"- {formats.libelle(c)} — `dce/{_nom(c['piece'])}` : « {c['extrait']} »"
             for c in constats
         ]
     else:
@@ -149,10 +155,11 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
     if remplissables:
         lignes += ["", "## Pièces à remplir dans le format de l'acheteur", ""]
         for piece in remplissables:
+            guide = "chiffrage" if piece["type"] in {"BPU", "DPGF", "DQE"} else "excel"
             lignes.append(
-                f"- `dce/{piece['chemin']}` ({piece['type']}) : remplissage de "
-                "cette pièce dans le format de l'acheteur, sans toucher à ses "
-                f"formules : disponible avec Remporte, {lien.site('piece-' + piece['type'].lower())}"
+                f"- `dce/{_nom(piece['chemin'])}` ({piece['type']}) : à remplir dans le "
+                "fichier de l'acheteur, sans toucher à ses formules "
+                f"(`remporte guide {guide}`)"
             )
     (dossier / "01-pieces.md").write_text(
         "\n".join(lignes) + "\n", encoding="utf-8"

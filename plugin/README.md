@@ -31,7 +31,9 @@ après accord. Installer le plugin n'installe pas le CLI.
 Les DCE et les documents sont lus depuis les fichiers accessibles à l'environnement choisi.
 En local, ils peuvent se trouver sur votre poste. En cloud, ils se trouvent dans l'environnement
 cloud et ne sont pas forcément présents sur votre poste. Le raisonnement passe par le fournisseur
-de l'agent et suit ses conditions de traitement. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
+de l'agent et suit ses conditions de traitement. Sans clé API Remporte, le plugin et le CLI ne font aucun
+appel réseau ; avec une clé, ils récupèrent seulement les données de votre entreprise déposées
+dans l'application Remporte : [données et confidentialité](https://github.com/Remporte-dev/remporte-appels-offres/blob/main/PRIVACY.md).
 
 ## Contenu
 
@@ -42,23 +44,12 @@ méthode selon le livrable), `lecture-dce`, `redaction-section`, `relecture-ao`,
 `redacteur-section`, `relecteur`. Les procédures métier partagées se trouvent dans
 [references/](references/lecture-dce.md). Le plugin ne contient ni hook ni serveur MCP.
 
-## Uniquement avec Remporte
+## Clé API Remporte
 
-Ce plugin fonctionne avec le CLI et sans compte Remporte. Ces fonctions demandent une clé API
-Remporte, sur devis, distincte du plugin :
-
-- **Détection de conformité des chiffrages** : bordereaux de prix contrôlés face au DCE et à
-  l'acte d'engagement.
-- **Gestion de catalogues** : vos prestations, produits et prix, réutilisés d'un marché à
-  l'autre.
-- **Chartes graphiques avancées** : documents au format de votre entreprise, avec reprise
-  intelligente de votre mise en page.
-- **Gestion des expériences** : vos références et projets passés, mobilisés comme preuves.
-- **Détection des contraintes et des incohérences de l'acheteur** dans le DCE.
-- **Base de connaissances partagée par l'équipe** et flotte d'agents Remporte de vérification
-  de conformité.
-
-Présentation : https://remporte.fr/outils/agent-ia/
+Le plugin fonctionne avec le CLI, sans compte Remporte. Une clé API Remporte donne en plus à
+votre agent accès aux données que votre entreprise a déposées dans l'application Remporte :
+base de connaissances, fiche entreprise, charte. Créer votre clé :
+https://remporte.fr/outils/agent-ia/#cle-api
 
 ## En savoir plus
 
