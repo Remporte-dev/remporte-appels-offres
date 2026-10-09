@@ -34,6 +34,7 @@
     "supportURL": "https://github.com/Remporte-dev/remporte-appels-offres/issues",
     "privacyPolicyURL": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/Remporte-dev/remporte-appels-offres/blob/main/LICENSE",
+    "brandColor": "#C2410C",
     "composerIcon": "./assets/icon.png",
     "logo": "./assets/icon.png",
     "defaultPrompt": [

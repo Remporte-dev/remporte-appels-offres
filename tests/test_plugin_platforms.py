@@ -24,6 +24,9 @@ def test_identite_et_versions_des_trois_manifests():
     assert portable["extensions"]["com.openai"]["interface"] == codex["interface"]
     assert len(codex["interface"]["shortDescription"]) <= 30
     assert (PLUGIN / codex["skills"]).is_dir()
+    onboarding = portable["extensions"]["com.openai"]["onboardingSkill"]
+    assert onboarding.startswith("./") and (PLUGIN / onboarding).is_file()
+    assert re.fullmatch(r"#[0-9A-F]{6}", codex["interface"]["brandColor"])
 
 
 def test_les_deux_catalogues_pointent_sur_la_meme_source():
