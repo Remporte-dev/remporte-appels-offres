@@ -10,6 +10,9 @@ Quand le marché est alloti, chaque lot retenu a son dossier, même s'il n'y en 
 qu'un : `remporte livraison dossier --lot <id>` le crée et donne son chemin
 (`reponse/Lot <id> - <intitulé>/`). Toutes les pièces du lot s'y rangent, DC1
 et DC2 compris.
+Si le DCE a été réimporté ou le tri retouché depuis son enregistrement, le
+CLI refuse l'export, la candidature et le dossier de remise : fais valider le
+tri à nouveau (`remporte lots enregistrer`), puis reprends.
 
 1. **Les livrables bureautiques, c'est toi qui les produis**, avec tes propres
    outils (traitement de texte, présentation, tableur), dans le format que

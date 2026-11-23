@@ -236,7 +236,7 @@ toutefois les utiliser vous-même.
 | `remporte guide style` | Règles d'écriture de tout texte remis à l'acheteur |
 | `remporte guide cle-api` | Ce que donne une clé API Remporte et comment la créer |
 
-Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat structuré.
+Les commandes qui rendent un résultat structuré (`init`, `etat`, `pieces`, `lots`, `livraison`, `candidature`, `exporter`…) acceptent `--json`, pour qu'un agent le lise sans ambiguïté.
 
 ## Économiser son abonnement
 
@@ -333,8 +333,8 @@ choose the lots, extracts weighted award criteria, requirements and questions fo
 for each chosen lot, fills the price schedule with your prices, drafts the technical proposal (*mémoire technique*) section by
 section from your company documents, checks coverage of every numbered requirement, fills the
 official DC1/DC2/DC4 forms, cross-checks the whole bid for inconsistencies, and produces HTML working documents and an Excel compliance matrix
-(your agent writes the Word proposal itself). Everything runs locally; no
-account, no network calls. The method and outputs are in French.
+(your agent writes the Word proposal itself). The CLI itself needs no
+account and makes no network calls. The method and outputs are in French.
 
 ## Licence
 
