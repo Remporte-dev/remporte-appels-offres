@@ -10,13 +10,16 @@
 [![Codex, Gemini CLI, Pi](https://img.shields.io/badge/agents-Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Pi-c2410c)](#avec-codex-gemini-cli-pi-ou-un-autre-agent)
 
 **Un CLI et des intégrations pour Claude Code, Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse et Pi, gratuits et open source, pour répondre à un marché
-public français avec votre agent IA** : lecture du DCE, analyse, go/no-go, plan du mémoire
-technique, rédaction, contrôle de conformité, relecture, formulaires DC1/DC2/DC4, documents
-de travail en HTML et matrice de conformité Excel.
+public français avec votre agent IA** : lecture du DCE, tri et choix des lots, analyse de
+chaque lot avec les questions à poser à l'acheteur, go/no-go, chiffrage, plan du mémoire
+technique, rédaction, relectures, contrôle de cohérence du dossier, formulaires DC1/DC2/DC4,
+documents de travail en HTML et matrice de conformité Excel.
 
-Vous donnez le zip du DCE. Votre agent (Claude Code, Codex, Gemini CLI, Pi…) lit les pièces,
-suit une méthode écrite par des gens qui répondent à des appels d'offres, et produit un
-dossier de réponse que vous relisez. Les fichiers sont lus dans l’environnement choisi, qui peut être local ou cloud. Le raisonnement passe par votre fournisseur d’agent et suit ses conditions de traitement.
+Vous donnez le DCE à votre agent (Claude Code, Codex, Gemini CLI, Pi…) et vous lui dites ce
+que vous voulez, en français : « Aide-moi à répondre à cet appel d'offres ». Vous n'avez
+aucune commande à taper. L'agent lit les pièces, suit une méthode écrite par des gens qui
+répondent à des appels d'offres, vous demande de décider aux moments qui comptent, et
+produit un dossier de réponse que vous relisez. Les fichiers sont lus dans l’environnement choisi, qui peut être local ou cloud. Le raisonnement passe par votre fournisseur d’agent et suit ses conditions de traitement.
 
 Un outil de [Remporte](https://remporte.fr/outils/agent-ia/?utm_source=github&utm_medium=readme&utm_content=entete),
 le logiciel de réponse aux appels d'offres.
@@ -30,13 +33,20 @@ le logiciel de réponse aux appels d'offres.
 | Fichier | Contenu |
 |---|---|
 | `01-pieces.md` | Inventaire des pièces reconnues (RC, CCAP, CCTP, CRT, AE, BPU, DPGF…), pièces illisibles, formats imposés par l'acheteur |
-| `02-analyse.md` | Identité de la consultation, critères pondérés, exigences, pièces à remettre, clauses à risque, chaque point sourcé dans le DCE |
+| `00-index.md` | Index du DCE : pour chaque pièce, les lots concernés, son contenu en deux lignes, les articles à retenir |
+| `memoire/lots.json` | Tri des lots : pièces de chaque lot, pièces communes, avis sur chaque lot au regard de votre métier, puis votre choix |
+| `memoire/rapport-lots.html` | Page de synthèse des lots et des questions à poser à l'acheteur |
+| `analyse/lot-<id>.md` | Analyse d'un lot retenu : identité, critères pondérés, pièces à remettre, incohérences entre pièces, avis, chaque point sourcé dans le DCE |
+| `analyse/lot-<id>.json` | Questions à l'acheteur pour ce lot, chacune avec son contexte, ses sources et son effet sur le prix |
 | `03-go-no-go.md` | Décision de répondre ou non, et ce qu'il faut réunir |
 | `04-plan.md` | Plan du mémoire calé sur le cadre de réponse imposé, ou à défaut sur les critères |
 | `sections/` | Le mémoire technique, une section par fichier, avec les preuves tirées de vos documents |
-| `05-relecture.md` | Relecture avec la grille de notation de l'acheteur, par un agent qui n'a rien écrit |
-| `candidature/` | DC1, DC2 et DC4 officiels remplis |
-| `export/` | `analyse.html`, `feuille-de-route.html`, `dossier.html`, `matrice-conformite.xlsx` |
+| `relectures/` | Relecture de chaque étape (plan, pièces) par un agent qui ne l'a pas produite |
+| `05-relecture.md` | Relecture du mémoire avec la grille de notation de l'acheteur, par un agent qui n'a rien écrit |
+| `06-coherence.md` | Contrôle de cohérence du dossier : montants, délais, moyens, sous-traitants et engagements comparés d'une pièce à l'autre |
+| `candidature/valeurs.json` | Valeurs des formulaires DC1, DC2 et DC4 avant leur remplissage |
+| `reponse/` | Tout ce qui part chez l'acheteur : mémoire, bordereau de prix, acte d'engagement, fichiers imposés, DC1, DC2, DC4. Pour un marché alloti, un dossier par lot retenu : `reponse/Lot <id> - <intitulé>/` |
+| `export/` | Documents de travail : `analyse.html`, `feuille-de-route.html`, `dossier.html`, `matrice-conformite.xlsx` |
 
 Quand le cadre de réponse numérote ses exigences, `remporte cadre --couverture` liste celles
 qu'aucune section ne traite encore. Un mémoire qui oublie une exigence perd des points sans
@@ -57,37 +67,37 @@ macOS, Linux et Windows ; signalez-nous tout problème.
 
 ### Avec Claude Code
 
-Le dépôt contient un plugin Claude Code (dossier [`plugin/`](https://github.com/Remporte-dev/remporte-appels-offres/tree/main/plugin)). Claude Code utilise les commandes `/remporte:init` et `/remporte:nouvel-ao`. Ces commandes sont propres à Claude Code. Claude Code et Cowork doivent disposer des commandes et de l’accès aux fichiers concernés.
+Le dépôt contient un plugin Claude Code (dossier [`plugin/`](https://github.com/Remporte-dev/remporte-appels-offres/tree/main/plugin)). Claude Code et Cowork doivent disposer des commandes et de l’accès aux fichiers concernés.
 
 ```
 /plugin marketplace add Remporte-dev/remporte-appels-offres
 /plugin install remporte@remporte
 ```
 
-Puis deux commandes :
+Ensuite, parlez-lui. Aucune commande à taper :
 
-- **`/remporte:init`**, une fois par environnement : vérifie l'installation, indexe les documents de
-  votre entreprise et construit la fiche entreprise que liront tous les agents ;
-- **`/remporte:nouvel-ao <DCE.zip>`**, pour chaque appel d'offres : crée le dossier et conduit
-  le parcours avec vous, avec trois arrêts de validation (analyse, go/no-go, plan).
-
-Exemples de demandes :
-
-- `/remporte:init` : crée votre espace de travail et construit la fiche entreprise à partir de
-  vos références, CV et certifications ;
-- `/remporte:nouvel-ao ~/Téléchargements/DCE-voirie.zip` : lit le DCE, prépare l'analyse, le
-  go/no-go et le plan du mémoire ;
+- « Aide-moi à répondre à cet appel d'offres : ~/Téléchargements/DCE-voirie.zip » : l'agent
+  lit le DCE, vous présente l'acheteur, l'objet, les lots et la date de remise, puis vous
+  demande à quels lots répondre ;
+- « Mets Remporte en route » : à la première utilisation, l'agent vérifie l'installation,
+  indexe les documents de votre entreprise et construit la fiche entreprise que liront tous
+  les agents. Il le propose de lui-même quand l'outil ou la fiche manque ;
 - « Vérifie que chaque exigence du cadre de réponse est traitée dans le mémoire » ;
 - « Remplis le DC1 et le DC2 pour ce marché ».
 
-Le plugin fournit trois sous-agents, pour lire une fois et rédiger en parallèle sans épuiser
-l'abonnement :
+Une seule compétence sert de porte d'entrée, `repondre-ao` : elle reconnaît la demande,
+reprend un dossier déjà commencé et oriente vers la bonne méthode. Si vous préférez
+l'appeler par son nom : `/remporte:repondre-ao`, et `/remporte:init` pour la mise en route.
+
+Le plugin fournit quatre sous-agents, pour lire une fois, rédiger en parallèle et faire
+relire par un agent qui n'a pas écrit, sans épuiser l'abonnement :
 
 | Sous-agent | Rôle |
 |---|---|
-| `lecteur-dce` | Lit RC, CCAP, CCTP et annexes volumineuses une seule fois, écrit l'index et l'analyse |
+| `lecteur-dce` | Lit RC, CCAP, CCTP et annexes volumineuses une seule fois, écrit l'index, le tri des lots, puis l'analyse de chaque lot retenu |
 | `redacteur-section` | Rédige une section du mémoire à partir du plan, de l'analyse et de vos documents |
-| `relecteur` | Relit le mémoire terminé avec la grille de l'acheteur, sans l'avoir rédigé |
+| `relecteur` | Relit le mémoire terminé avec la grille de l'acheteur, ou une étape (plan, pièce) avant que la suivante ne parte, sans l'avoir produite |
+| `controleur-coherence` | Recoupe le dossier entier avant la remise (mémoire, chiffrage, acte d'engagement, DC1, DC2, DC4, planning) et relève ce qui se contredit ; ne modifie rien |
 
 ### Avec Codex et ChatGPT Work
 
@@ -98,9 +108,11 @@ codex plugin marketplace add /chemin/vers/remporte-appels-offres
 codex plugin add remporte@remporte
 ```
 
-Ouvrez ensuite une nouvelle conversation et utilisez `$remporte:init` ou
-`$remporte:nouvel-ao <chemin du DCE>`. Vous pouvez aussi demander « Aide-moi à répondre à
-cet appel d'offres » : la skill `remporte:repondre-ao` prend le relais.
+Ouvrez ensuite une nouvelle conversation et demandez « Aide-moi à répondre à cet appel
+d'offres », avec le chemin du DCE : la compétence `remporte:repondre-ao` prend le relais.
+Pour l'appeler par son nom : `$remporte:repondre-ao`, et `$remporte:init` pour la mise en
+route. Les sous-agents du plugin sont propres à Claude Code : dans Codex, l'agent fait
+lui-même ces étapes ou les confie à un sous-agent générique.
 
 Le catalogue OpenAI est dans `.agents/plugins/marketplace.json`. Dans l'application
 ChatGPT de bureau, choisissez cette source locale dans l'annuaire des plugins lorsqu'elle
@@ -128,31 +140,55 @@ remporte init ~/Téléchargements/DCE.zip     # crée DCEs/DCE/
 cd DCEs/DCE && codex                        # ou claude, gemini, pi…
 ```
 
-Chaque dossier contient un `AGENTS.md` (et
-un `CLAUDE.md` et un `GEMINI.md`) qui donne la marche à suivre à l'agent.
+Ces commandes peuvent aussi être lancées par l'agent lui-même. Chaque dossier contient un
+`AGENTS.md` (et un `CLAUDE.md` et un `GEMINI.md`) qui donne la marche à suivre à l'agent.
 
 ## Comment ça marche
 
 ```mermaid
 flowchart LR
-    DCE[DCE.zip] --> P[pièces] --> A[analyse] --> G{go / no-go}
-    G -->|go| PL[plan] --> R[rédaction] --> RL[relecture] --> E[export]
+    DCE[DCE.zip] --> P[pièces et index] --> T[tri des lots]
+    T --> C{vous choisissez<br/>les lots}
+    C --> A[analyse de chaque lot<br/>et questions à l'acheteur]
+    A --> G{go / no-go}
+    G -->|go| CH[chiffrage<br/>avec vos prix]
+    CH --> M{mémoire ?}
+    M -->|oui| PL[plan] --> R[rédaction] --> RL[relecture]
+    M -->|non| AP[autres pièces]
+    RL --> AP
+    AP --> CO[contrôle de cohérence] --> E[remise]
     B[(vos documents<br/>ressources/)] -.-> R
 ```
+
+L'agent lit tout le DCE avant de vous poser la moindre question. Il vous annonce ensuite
+l'acheteur, l'objet, les lots avec son avis sur chacun, la date limite de remise, et vous
+propose une date interne trois jours ouvrés avant. Vous choisissez les lots auxquels vous
+répondez, même quand le marché n'en compte qu'un. Les lots, le go/no-go, les prix, la
+décision de faire un mémoire et le plan restent vos décisions : l'agent recommande, vous
+décidez. Il ne fixe aucun prix.
 
 | Étape | Fichier | Ce que fait l'agent | `remporte guide` |
 |---|---|---|---|
 | Pièces | `01-pieces.md` | Vérifie l'inventaire, signale les pièces illisibles | `pieces` |
-| Analyse | `02-analyse.md` | Critères pondérés, exigences, pièces à remettre, clauses | `analyse` |
-| Go/no-go | `03-go-no-go.md` | Décide s'il faut répondre | `go-no-go` |
-| Plan | `04-plan.md` | Trame calée sur le cadre de réponse ou les critères | `plan` |
+| Index et tri des lots | `00-index.md`, `memoire/lots.json` | Range chaque pièce dans son lot ou dans les pièces communes, donne un avis sur chaque lot | `analyse` |
+| Choix des lots | `memoire/rapport-lots.html` | Vous annonce le marché et enregistre les lots que vous retenez | `analyse` |
+| Analyse par lot | `analyse/lot-<id>.md`, `.json` | Critères pondérés, pièces à remettre, incohérences, questions à l'acheteur, chaque point sourcé | `analyse` |
+| Go/no-go | `03-go-no-go.md` | Prépare la décision de répondre, que vous prenez | `go-no-go` |
+| Chiffrage | `reponse/` | Remplit le bordereau de l'acheteur avec vos prix | `chiffrage` |
+| Plan | `04-plan.md` | Trame calée sur le cadre de réponse ou les critères, relue avant de vous être soumise | `plan` |
 | Rédaction | `sections/` | Une section par fichier, preuves tirées de votre base | `redaction` |
-| Relecture | `05-relecture.md` | Note le mémoire avec la grille de l'acheteur | `relecture` |
-| Export | `export/` | Documents de travail HTML, matrice Excel ; votre agent produit le mémoire Word | `export` |
+| Relecture | `05-relecture.md`, `relectures/` | Note le mémoire avec la grille de l'acheteur ; chaque étape est relue par un agent qui ne l'a pas produite | `relecture` |
+| Cohérence | `06-coherence.md` | Recoupe montants, délais, moyens et engagements entre toutes les pièces | |
+| Autres pièces et remise | `reponse/`, `export/` | Acte d'engagement, DC1, DC2, DC4, fichiers imposés ; liste de ce que vous devez encore fournir ou signer | `export` |
 
-`remporte etat` dit où en est le dossier et quelle est l'étape suivante. Le CLI fait sans
-modèle tout ce qui peut l'être (conversion, recherche, contrôle de couverture, mise en page) ;
-l'agent garde le raisonnement et l'écriture.
+Le chiffrage peut venir avant le go/no-go si vous voulez le prix d'abord. Le mémoire n'est
+pas obligatoire : une fois le prix arrêté, l'agent vous rappelle ce que le règlement de la
+consultation en dit et vous laisse décider. Tant qu'une relecture signale un point
+bloquant, rien ne part chez l'acheteur.
+
+`remporte etat` dit où en est le dossier, lot par lot, et quelle est l'étape suivante. Le CLI
+fait sans modèle tout ce qui peut l'être (conversion, recherche, validation du tri des lots,
+contrôle de couverture, mise en page) ; l'agent garde le raisonnement et l'écriture.
 
 **Cas particuliers** pris en charge par `remporte guide` : limite de pages, réponse dans un
 fichier Excel ou Word imposé par l'acheteur, soutenance orale (le support se prépare à partir
@@ -165,28 +201,39 @@ Remporte/
   ressources/                vos documents, fiche-entreprise.md, index de recherche
   DCEs/
     2026-05-mairie-voirie/   un dossier par appel d'offres
+      dce/                   les pièces du DCE
+      analyse/               une analyse par lot retenu
+      reponse/               les pièces à remettre (un dossier par lot si le marché est alloti)
 ```
 
 Un seul dossier, dans l’environnement choisi ou un dossier partagé accessible. On retrouve chaque réponse, son index et son analyse au même endroit.
 
 ## Les commandes
 
+Ces commandes sont les outils de votre agent : c'est lui qui les lance. Vous pouvez
+toutefois les utiliser vous-même.
+
 | Commande | Rôle |
 |---|---|
 | `remporte espace [chemin]` | Créer l'espace de travail (`ressources/`, `DCEs/`) |
 | `remporte init <dce>` | Créer un dossier de réponse depuis un zip ou un dossier |
-| `remporte etat` | Avancement et prochaine étape |
+| `remporte etat` | Avancement, lot par lot, et prochaine étape |
 | `remporte guide [étape]` | Méthode de l'étape |
 | `remporte pieces` | Inventaire des pièces |
+| `remporte lots enregistrer` | Valider le tri des pièces par lot |
+| `remporte lots choisir --lots "<lots>" --par "<nom>"` | Enregistrer les lots retenus et préparer leur analyse |
+| `remporte lots rapport [--ouvrir]` | Page de synthèse des lots et des questions à l'acheteur |
 | `remporte lire <type ou nom>` | Texte d'une pièce ; sommaire si elle est longue, puis `--page` |
 | `remporte chercher "<termes>"` | Recherche dans tout le DCE |
 | `remporte cadre [--couverture]` | Trame imposée par le cadre de réponse ; exigences non traitées |
 | `remporte formats` | Soutenance, limite de pages, cadres Excel ou Word à compléter |
-| `remporte candidature preparer\|remplir` | DC1, DC2, DC4 officiels |
+| `remporte livraison dossier [--lot <id>]` | Trouver ou créer le dossier de remise du marché ou d'un lot |
+| `remporte candidature preparer\|remplir` | DC1, DC2, DC4 officiels, écrits dans le dossier de remise |
 | `remporte base indexer\|chercher` | Index et recherche dans les documents de l'entreprise |
 | `remporte fiche [--creer]` | Fiche entreprise lue par tous les agents |
 | `remporte exporter` | Analyse, feuille de route et dossier HTML, matrice de conformité Excel |
 | `remporte html <fichier.md>` | Mettre n'importe quel markdown en page HTML |
+| `remporte guide style` | Règles d'écriture de tout texte remis à l'acheteur |
 | `remporte guide cle-api` | Ce que donne une clé API Remporte et comment la créer |
 
 Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat structuré.
@@ -196,7 +243,7 @@ Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat stru
 - Une pièce longue se lit par son sommaire, puis page par page : sur un CCTP réel de
   523 000 caractères, le sommaire en fait 13 900.
 - Les gros documents sont lus une seule fois, par un sous-agent, qui écrit un index que
-  réutilisent toutes les étapes suivantes.
+  réutilisent toutes les étapes suivantes. Seuls les lots que vous retenez sont analysés.
 - `remporte guide modeles` indique la puissance de modèle utile à chaque étape, et quand
   confier une tâche à un modèle léger.
 
@@ -204,7 +251,7 @@ Toutes les commandes acceptent `--json`, pour qu'un agent lise un résultat stru
 
 Le CLI s’exécute dans l’environnement où vous le lancez et lit les fichiers accessibles dans cet environnement. En local, ils peuvent être sur votre poste. En cloud, ils sont dans l’environnement cloud choisi et ne sont pas forcément présents sur votre poste. Le raisonnement est fait par votre agent, selon les conditions de son éditeur. Détails : [politique de confidentialité](https://remporte.fr/politique-confidentialite/#outil-agent-ia).
 
-**Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install --upgrade remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
+**Dépendance externe** : le plugin ne fournit pas le CLI `remporte`. Vérifiez sa présence avec `remporte --version`. S’il manque, l'agent propose la mise en route, qui suggère `uv tool install --upgrade remporte` et attend votre accord. Installer le plugin n’installe pas le CLI. Le plugin ne contient ni hook ni serveur MCP.
 
 ## Uniquement avec Remporte
 
@@ -233,7 +280,10 @@ signalés dans l'inventaire), et chercher des appels d'offres (il part du DCE qu
 **Faut-il un compte ou une clé d'API ?** Non. Le CLI fonctionne seul, avec l'abonnement de
 votre agent.
 
-**Quels agents ?** Claude Code (plugin, commandes et sous-agents), Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse, Pi, et
+**Faut-il connaître les commandes ?** Non. Vous parlez à votre agent en français ; il lance
+les commandes lui-même.
+
+**Quels agents ?** Claude Code (plugin et sous-agents), Codex, ChatGPT Work, Gemini CLI, Hermes, OpenClaw, Muse, Pi, et
 tout agent qui sait lancer une commande et lire un fichier `AGENTS.md`.
 
 **Marchés privés ?** Oui pour l'analyse, le plan, la rédaction et la relecture. Les
@@ -266,7 +316,7 @@ uv run python scripts/package_plugin.py --platform claude --output dist/remporte
 uv run python scripts/package_plugin.py --platform openai --output dist/remporte-openai.zip
 ```
 
-L'archive Claude conserve ses agents et son manifeste. L'archive OpenAI inclut les treize
+L'archive Claude conserve ses quatre agents et son manifeste. L'archive OpenAI inclut les douze
 skills et leurs métadonnées, les procédures communes et les manifests OpenAI. Les dépendances
 du CLI sont déclarées dans `pyproject.toml` ; aucune n'est installée par l'archive du plugin.
 Le script refuse d'écraser une archive existante.
@@ -277,10 +327,12 @@ Dépendances sous licences permissives uniquement (MIT, BSD, Apache).
 
 **Remporte CLI** is an open-source command-line tool and Claude Code plugin that helps an AI
 agent (Claude Code, Codex, Gemini CLI, Pi) answer **French public procurement tenders**
-(*appels d'offres*, *marchés publics*): it reads the tender documents (DCE), extracts weighted
-award criteria and requirements, drafts the technical proposal (*mémoire technique*) section by
+(*appels d'offres*, *marchés publics*). You hand the tender documents (DCE) to your agent and
+ask in plain French; no command to type. The agent reads the DCE, sorts it by lot, lets you
+choose the lots, extracts weighted award criteria, requirements and questions for the buyer
+for each chosen lot, fills the price schedule with your prices, drafts the technical proposal (*mémoire technique*) section by
 section from your company documents, checks coverage of every numbered requirement, fills the
-official DC1/DC2/DC4 forms, and produces HTML working documents and an Excel compliance matrix
+official DC1/DC2/DC4 forms, cross-checks the whole bid for inconsistencies, and produces HTML working documents and an Excel compliance matrix
 (your agent writes the Word proposal itself). Everything runs locally; no
 account, no network calls. The method and outputs are in French.
 
