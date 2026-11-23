@@ -74,7 +74,7 @@ _PATTERNS_NOM = [
 ]
 
 # Classification par contenu : sur texte normalisé (sans accents, apostrophes
-# unifiées, blancs compactés). Lexique repris de classify.py de remporte-pi.
+# unifiées, blancs compactés).
 _PATTERNS_CONTENU = [
     ("RC", re.compile(
         r"reglement(?: particulier)? de la? consultation|modalites de remise")),
