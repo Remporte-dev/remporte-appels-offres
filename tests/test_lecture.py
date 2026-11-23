@@ -28,6 +28,21 @@ def test_decompresser_zip_simple(tmp_path: Path):
     assert "sous/cctp.docx" in noms
 
 
+def test_decompresser_nom_utf8_non_declare(tmp_path: Path):
+    """Zip de plateforme d'achat : noms en UTF-8 sans le drapeau qui le dit."""
+    vrai = "DCE Tvx généraux/RC.txt".encode("utf-8")
+    substitut = bytes(b if b < 0x80 else ord("x") for b in vrai)  # même longueur, ASCII
+    archive = tmp_path / "dce.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr(substitut.decode("ascii"), "Règlement de la consultation")
+    # Noms ASCII : pas de drapeau UTF-8 ; on y glisse les octets UTF-8 réels.
+    archive.write_bytes(archive.read_bytes().replace(substitut, vrai))
+    with zipfile.ZipFile(archive) as zf:
+        assert not zf.infolist()[0].flag_bits & 0x800
+    fichiers = decompresser(archive, tmp_path / "dce")
+    assert [f.relative_to(tmp_path / "dce").as_posix() for f in fichiers] == ["DCE Tvx généraux/RC.txt"]
+
+
 def test_decompresser_zip_dans_zip(tmp_path: Path):
     source = fabriquer_zip(
         tmp_path / "DCE.zip",
@@ -67,6 +82,46 @@ def test_decompresser_signale_7z(tmp_path: Path, capsys):
     fichiers = decompresser(source, tmp_path / "dce")
     assert any(f.suffix == ".7z" for f in fichiers)
     assert "7z" in capsys.readouterr().err
+
+
+def test_decompresser_ecarte_les_parasites_d_un_zip(tmp_path: Path):
+    """Verrous Office, Thumbs.db, desktop.ini et AppleDouble ne sortent jamais
+    d'un zip, pas plus que les parasites macOS déjà écartés."""
+    source = fabriquer_zip(tmp_path / "DCE.zip", {
+        "RC.txt": "Règlement de la consultation",
+        "~$CCTP.docx": "verrou office",
+        "~$DPGF.xlsx": "verrou office",
+        "Thumbs.db": "vignettes windows",
+        "desktop.ini": "[.ShellClassInfo]",
+        "sous/._CCTP.pdf": "%PDF-faux",
+        ".DS_Store": "bud1",
+        "__MACOSX/._RC.txt": "appledouble",
+    })
+    fichiers = decompresser(source, tmp_path / "dce")
+    assert [f.relative_to(tmp_path / "dce").as_posix() for f in fichiers] == ["RC.txt"]
+    sur_disque = {p.relative_to(tmp_path / "dce").as_posix()
+                  for p in (tmp_path / "dce").rglob("*") if p.is_file()}
+    assert sur_disque == {"RC.txt"}
+
+
+def test_decompresser_ecarte_les_parasites_d_un_dossier(tmp_path: Path):
+    """Même écart d'un DCE fourni en dossier : rien n'est copié dans le
+    dossier de réponse."""
+    source = tmp_path / "DCE"
+    (source / "sous").mkdir(parents=True)
+    (source / "RC.txt").write_text("Règlement de la consultation", encoding="utf-8")
+    (source / "~$CCTP.docx").write_text("verrou office", encoding="utf-8")
+    (source / "~$DPGF.xlsx").write_text("verrou office", encoding="utf-8")
+    (source / "Thumbs.db").write_text("vignettes windows", encoding="utf-8")
+    (source / "desktop.ini").write_text("[.ShellClassInfo]", encoding="utf-8")
+    (source / ".DS_Store").write_text("bud1", encoding="utf-8")
+    (source / "sous" / "._CCTP.pdf").write_bytes(b"%PDF-faux")
+    # cible ≠ « dce » : sur un système de fichiers insensible à la casse,
+    # « DCE » et « dce » seraient le même chemin.
+    fichiers = decompresser(source, tmp_path / "sortie")
+    assert [f.name for f in fichiers] == ["RC.txt"]
+    sur_disque = {p.name for p in (tmp_path / "sortie").rglob("*") if p.is_file()}
+    assert sur_disque == {"RC.txt"}
 
 
 def test_convertir_pdf(tmp_path: Path):
