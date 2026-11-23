@@ -81,15 +81,19 @@ def test_export_refuse_ecrasement_et_sortie_dans_source(tmp_path):
 
 
 def test_agents_claude_et_skills_openai_partagent_les_procedures():
+    """La skill renvoie à la procédure commune ; le sous-agent la porte en clair,
+    mot pour mot, pour ne pas dépendre d'un lien qu'il ne sait pas résoudre."""
     pairs = {"lecteur-dce": "lecture-dce", "redacteur-section": "redaction-section", "relecteur": "relecture-ao"}
+    normaliser = lambda texte: " ".join(texte.split())
     for agent, skill in pairs.items():
         agent_path = PLUGIN / "agents" / (agent + ".md")
         skill_path = PLUGIN / "skills" / skill / "SKILL.md"
         agent_text = agent_path.read_text(encoding="utf-8")
         skill_text = skill_path.read_text(encoding="utf-8")
-        agent_ref = re.search(r"\]\(([^)]+)\)", agent_text).group(1)
         skill_ref = re.search(r"\]\(([^)]+)\)", skill_text).group(1)
-        assert (agent_path.parent / agent_ref).resolve() == (skill_path.parent / skill_ref).resolve()
+        procedure = (skill_path.parent / skill_ref).resolve().read_text(encoding="utf-8")
+        corps = procedure.split("\n", 1)[1] if procedure.startswith("#") else procedure
+        assert normaliser(corps) in normaliser(agent_text), agent
         assert f"name: {agent}\n" in agent_text
         assert "tools:" in agent_text
         assert f"model: {'inherit' if agent == 'relecteur' else 'sonnet'}\n" in agent_text

@@ -1,6 +1,6 @@
 ---
 name: init
-description: Mise en route de Remporte, une fois par environnement. Vérifie l'outil, indexe les documents de l'entreprise (références, CV, certifications, anciens mémoires) et contrôle qu'il ne manque rien d'essentiel pour répondre aux appels d'offres. À lancer quand l'utilisateur tape /remporte:init ou découvre l'outil.
+description: "Mise en route de Remporte, une fois par environnement. Vérifie l'outil, indexe les documents de l'entreprise (références, CV, certifications, anciens mémoires) et contrôle qu'il ne manque rien d'essentiel pour répondre aux appels d'offres. À lancer quand l'utilisateur tape /remporte:init ou découvre l'outil."
 disable-model-invocation: true
 ---
 
@@ -20,15 +20,22 @@ Vérifie que tu peux lancer une commande et lire/écrire les fichiers du dossier
 
 ## 1. L'outil est-il installé ?
 
-Lance `remporte --version` pour vérifier la dépendance externe Remporte CLI.
+Lance `remporte --version`. Si la commande répond, passe à l'étape 2.
 
-- S'il répond : passe à l'étape 2.
-- Sinon : explique que Remporte CLI est une dépendance externe et propose son
-  installation. Demande l'accord de l'utilisateur avant de lancer :
-  `uv tool install remporte`.
-  Ne promets pas que l'installation du plugin installe le CLI. Si `uv` est absent, donne-lui la page d'installation de uv
-  (https://docs.astral.sh/uv/getting-started/installation/) et attends qu'il
-  l'ait installé ; ne lance pas toi-même un script d'installation téléchargé.
+Sinon, propose d'installer l'outil Remporte et attends l'accord de l'utilisateur.
+Vérifie ensuite `uv --version`.
+
+Si `uv` est absent, demande « Il manque uv, le composant qui installe Remporte.
+Voulez-vous que je l'installe ? » Attends l'accord avant de lancer l'installateur
+officiel d'Astral. Il s'installe sans droits administrateur dans le dossier de
+l'utilisateur (`~/.local/bin` sous macOS et Linux, `%USERPROFILE%\.local\bin` sous Windows).
+
+- `curl -LsSf https://astral.sh/uv/install.sh | sh` sous macOS et Linux.
+- `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` sous Windows.
+
+Si le terminal ne trouve pas encore `uv` après l'installation, ajoute ce dossier
+aux chemins de recherche de la session. Lance `uv tool install remporte`, puis
+vérifie `remporte --version` avant de passer à l'étape 2.
 
 ## 2. L'espace de travail
 

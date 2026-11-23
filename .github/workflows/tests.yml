@@ -18,3 +18,51 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - run: uv run --python ${{ matrix.python }} pytest -q
+
+  installation:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+
+      - name: Installation de l'outil Remporte
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          uv tool install .
+          uv tool dir --bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Vérification de l'outil et lecture d'un dossier de réponse
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          remporte --version
+          $dce = Join-Path $env:RUNNER_TEMP 'dce'
+          $reponse = Join-Path $env:RUNNER_TEMP 'reponse'
+          New-Item -ItemType Directory -Path $dce | Out-Null
+          Set-Content -Path (Join-Path $dce 'RC.txt') -Value 'La valeur technique compte pour 60 % de la note.' -Encoding utf8
+          remporte init $dce --dossier $reponse
+          remporte pieces --dossier $reponse
+          remporte etat --dossier $reponse
+          remporte lire RC.txt --dossier $reponse
+
+      - name: Installation du plugin dans Claude Code
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm install -g @anthropic-ai/claude-code
+          claude plugin marketplace add "$env:GITHUB_WORKSPACE"
+          claude plugin install remporte@remporte
+          claude plugin list
+
+      - name: Installation du plugin dans Codex
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm install -g @openai/codex
+          codex plugin marketplace add "$env:GITHUB_WORKSPACE"
+          codex plugin add remporte@remporte
+          codex plugin list
