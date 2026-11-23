@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
+from remporte.chemins import diagnostic_chemin_trop_long
+
 FORMATS_LUS = {
     ".pdf", ".docx", ".xlsx", ".xlsm", ".ods", ".odt", ".txt", ".md", ".csv",
     ".pptx",
@@ -194,7 +196,8 @@ def _extraire_zip(chemin_zip: Path, base: Path, budget: _Budget) -> None:
                     _avertir(f"{chemin_zip} : extraction arrêtée, plus de 2 Go décompressés")
                     return
     except (zipfile.BadZipFile, OSError) as erreur:
-        _avertir(f"{chemin_zip} : archive non extraite ({erreur})")
+        motif = diagnostic_chemin_trop_long(erreur) or str(erreur)
+        _avertir(f"{chemin_zip} : archive non extraite ({motif})")
 
 
 def _dezipper_recursif(base: Path, budget: _Budget) -> None:
@@ -254,7 +257,7 @@ def convertir(piece: Path) -> Conversion:
             texte="",
             statut="illisible",
             pages=None,
-            motif=f"{type(erreur).__name__}: {erreur}",
+            motif=diagnostic_chemin_trop_long(erreur) or f"{type(erreur).__name__}: {erreur}",
         )
 
 
