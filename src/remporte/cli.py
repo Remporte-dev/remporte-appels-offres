@@ -18,9 +18,15 @@ from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
     travail,
 )
+from remporte.chemins import diagnostic_chemin_trop_long
 
 
 def main(argv: list[str] | None = None) -> int:
+    for flux in (sys.stdout, sys.stderr):
+        try:
+            flux.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError, ValueError):
+            pass
     parser = _construire_parser()
     args = parser.parse_args(argv)
     if getattr(args, "func", None) is None:
@@ -32,7 +38,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Erreur : {erreur}", file=sys.stderr)
         return 1
     except Exception as erreur:  # noqa: BLE001 — jamais de trace Python brute
-        print(f"Erreur : {type(erreur).__name__}: {erreur}", file=sys.stderr)
+        diagnostic = diagnostic_chemin_trop_long(erreur)
+        message = diagnostic or f"{type(erreur).__name__}: {erreur}"
+        print(f"Erreur : {message}", file=sys.stderr)
         return 1
 
 
@@ -193,7 +201,7 @@ def _dossier_reponse(args) -> Path | None:
     """Dossier de réponse explicite ou trouvé en remontant depuis le cwd."""
     if getattr(args, "dossier", None):
         candidat = Path(args.dossier)
-        if (candidat / ".remporte").is_dir():
+        if (candidat / ".remporte" / "etat.json").is_file():
             return candidat
         return None
     return espace.trouver_dossier(Path.cwd())
@@ -204,7 +212,7 @@ def _dossier_ou_code(args) -> tuple[Path | None, int]:
     if dossier is None:
         cible = getattr(args, "dossier", None) or str(Path.cwd())
         print(
-            f"Erreur : pas de dossier de réponse (.remporte/) dans {cible} "
+            f"Erreur : pas de dossier de réponse (.remporte/etat.json) dans {cible} "
             "ni au-dessus. Lancez `remporte init <DCE>` d'abord.",
             file=sys.stderr,
         )
@@ -255,6 +263,12 @@ def _lire_ressource(*parties: str) -> str | None:
 def _cmd_init(args) -> int:
     source = Path(args.source)
     if not source.exists():
+        # Selon la version de Python, exists() peut masquer une erreur de longueur.
+        try:
+            source.stat()
+        except (OSError, ValueError) as erreur:
+            if diagnostic_chemin_trop_long(erreur):
+                raise
         print(f"Erreur : source introuvable : {source}", file=sys.stderr)
         return 1
     racine = travail.trouver_espace()
@@ -274,6 +288,10 @@ def _cmd_init(args) -> int:
     lues = sum(1 for p in pieces if p["statut"] == "ok")
     print(f"Dossier de réponse : {dossier}")
     print(f"Pièces : {len(pieces)} ({lues} converties)")
+    if donnees["retirees"]:
+        print(f"Pièces retirées ({len(donnees['retirees'])}) :")
+        for chemin in donnees["retirees"]:
+            print(f"  dce/{chemin}")
     for message in inventaire.pieces_attendues_absentes({p["type"] for p in pieces}):
         print(f"  ! {message}")
     a_remplir = sorted({p["type"] for p in pieces} & espace.PIECES_REMPLISSABLES)

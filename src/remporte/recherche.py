@@ -156,8 +156,8 @@ def _requete_fts(requete: str) -> str:
     """Termes quotés pour FTS5, reliés par OR : un passage qui contient une
     partie des termes remonte, et bm25 classe en tête ceux qui en ont le plus.
     Un agent écrit des requêtes de plusieurs mots ; exiger tous les termes ne
-    ramenait souvent rien. Les mots d'une ou deux lettres sont ignorés."""
-    termes = [t for t in re.findall(r"\w+", requete, re.UNICODE) if len(t) > 2]
+    ramenait souvent rien. Les termes d'au moins deux caractères sont recherchés."""
+    termes = [t for t in re.findall(r"\w+", requete, re.UNICODE) if len(t) >= 2]
     return " OR ".join(f'"{terme}"' for terme in termes)
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ecrire_pdf, fabriquer_docx, fabriquer_xlsx
+from conftest import ecrire_pdf, fabriquer_docx, fabriquer_xlsx, fabriquer_zip
 
 from remporte.cli import main
 
@@ -311,3 +311,24 @@ def test_espace_de_travail(tmp_path, monkeypatch, capsys):
     assert recherche.chemin_fiche() == espace / "ressources" / "fiche-entreprise.md"
     assert cli.main(["init", str(dce)]) == 0
     assert (espace / "DCEs" / "DCE-mairie" / ".remporte").is_dir()
+
+
+def test_init_forcer_annonce_les_pieces_retirees(tmp_path: Path, capsys):
+    """init --forcer avec une nouvelle source : les pièces de l'ancien DCE
+    devenues absentes sont retirées et annoncées dans la sortie."""
+    dossier = tmp_path / "reponse"
+    zip_1 = fabriquer_zip(tmp_path / "DCE-1.zip", {
+        "RC.txt": "Règlement de la consultation du marché.",
+        "annexe-ancienne.txt": "Normes ZXQWJ de l'ancienne consultation.",
+    })
+    assert main(["init", str(zip_1), "--dossier", str(dossier)]) == 0
+    zip_2 = fabriquer_zip(tmp_path / "DCE-2.zip", {
+        "RC.txt": "Règlement de la consultation du marché, édition mise à jour.",
+    })
+    code = main(["init", str(zip_2), "--dossier", str(dossier), "--forcer"])
+    assert code == 0
+    # la pièce de l'ancienne source a bien disparu du dossier
+    assert not (dossier / "dce" / "annexe-ancienne.txt").exists()
+    sortie = capsys.readouterr().out
+    assert "Pièces retirées" in sortie
+    assert "annexe-ancienne.txt" in sortie

@@ -75,6 +75,44 @@ def test_lot_detecte_dans_le_nom():
     assert classer(Path("cctp.pdf"), "").lot is None
 
 
+def test_classer_prend_la_premiere_mention_de_l_en_tete():
+    """Le type est celui de la première mention de l'en-tête, pas celui de la
+    première catégorie de la liste : un acte d'engagement qui cite le CCAP
+    plus bas reste un AE."""
+    texte_ae = (
+        "ACTE D’ENGAGEMENT\n\n"
+        "Identification du candidat : Entreprise Exemple.\n\n"
+        "Le candidat reconnaît avoir pris connaissance du cahier des clauses "
+        "administratives (CCAP) du marché."
+    )
+    resultat = classer(Path("piece4.txt"), texte_ae)
+    assert resultat.type == "AE"
+    assert resultat.indice == "contenu"
+    # et l'inverse : un CCAP qui cite l'acte d'engagement plus bas reste un CCAP
+    texte_ccap = (
+        "CAHIER DES CLAUSES ADMINISTRATIVES\n\n"
+        "Le titulaire signe un acte d’engagement au moment de la remise de l’offre."
+    )
+    assert classer(Path("piece5.txt"), texte_ccap).type == "CCAP"
+
+
+def test_classer_cadre_de_memoire_technique_est_un_crt():
+    """« Cadre de mémoire technique » est le même type que « Cadre de réponse
+    technique » : un CRT, au nom comme à l'en-tête."""
+    par_nom = classer(Path("cadre-de-memoire-technique.docx"), "")
+    assert par_nom.type == "CRT"
+    assert par_nom.indice == "nom"
+    texte = (
+        "CADRE DE MÉMOIRE TECHNIQUE\n\n"
+        "Présentation de l'offre technique de l'Entreprise Exemple."
+    )
+    par_contenu = classer(Path("piece6.txt"), texte)
+    assert par_contenu.type == "CRT"
+    assert par_contenu.indice == "contenu"
+    # non-régression : le cadre de réponse technique reste un CRT
+    assert classer(Path("cadre-de-reponse-technique.docx"), "").type == "CRT"
+
+
 def test_pieces_attendues_absentes():
     messages = pieces_attendues_absentes({"CCTP", "BPU"})
     assert any("règlement de consultation" in m for m in messages)

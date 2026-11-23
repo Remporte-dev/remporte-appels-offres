@@ -1,6 +1,6 @@
 ---
 name: nouvel-ao
-description: Démarrer la réponse à un nouvel appel d'offres public à partir de son DCE (zip ou dossier), puis la conduire étape par étape avec l'utilisateur jusqu'aux fichiers à déposer. À lancer quand l'utilisateur tape /remporte:nouvel-ao, éventuellement suivi du chemin du DCE.
+description: "Démarrer la réponse à un nouvel appel d'offres public à partir de son DCE (zip ou dossier), puis la conduire étape par étape avec l'utilisateur jusqu'aux fichiers à déposer. À lancer quand l'utilisateur tape /remporte:nouvel-ao, éventuellement suivi du chemin du DCE."
 disable-model-invocation: true
 argument-hint: "[chemin du DCE, zip ou dossier]"
 ---

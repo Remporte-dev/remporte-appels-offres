@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
+from remporte.chemins import diagnostic_chemin_trop_long
+
 FORMATS_LUS = {
     ".pdf", ".docx", ".xlsx", ".xlsm", ".ods", ".odt", ".txt", ".md", ".csv",
     ".pptx",
@@ -25,8 +27,8 @@ FORMATS_LUS = {
 # Seuil « PDF scanné » : moins de ce nombre de caractères extraits par page.
 _SEUIL_SCAN_PAR_PAGE = 50
 
-# Fichiers parasites des archives macOS, jamais des pièces du DCE.
-_JUNK = {"__MACOSX", ".DS_Store"}
+# Fichiers système et verrous, jamais des pièces du DCE.
+_JUNK = {"__macosx", ".ds_store", "thumbs.db", "desktop.ini"}
 
 _ARCHIVES_NON_DECOMPRESSABLES = {".7z", ".rar"}
 
@@ -71,16 +73,24 @@ def decompresser(source: Path, cible: Path) -> list[Path]:
 
     Protège contre les chemins sortants (zip slip), les liens symboliques d'un
     dossier source, les noms piégés et les archives démesurées, et saute les
-    fichiers parasites (__MACOSX, .DS_Store). Les .7z/.rar sont copiés tels
+    fichiers parasites. Les .7z/.rar sont copiés tels
     quels et signalés sur stderr. Rend la liste des fichiers obtenus.
     """
+    fichiers, _ = decompresser_avec_etat(source, cible)
+    return fichiers
+
+
+def decompresser_avec_etat(source: Path, cible: Path) -> tuple[list[Path], bool]:
+    """Rend les pièces obtenues et indique si l'extraction a abouti."""
     source = Path(source)
     cible = Path(cible)
+    if _est_junk(Path(source.name)):
+        return lister_fichiers(cible), True
     budget = _Budget()
     if source.is_dir():
         if cible.exists() and source.samefile(cible):
-            return lister_fichiers(cible)  # copier sur soi-même : ne rien faire
-        shutil.copytree(source, cible, dirs_exist_ok=True, ignore=_ignorer_liens)
+            return lister_fichiers(cible), True  # copier sur soi-même : ne rien faire
+        shutil.copytree(source, cible, dirs_exist_ok=True, ignore=_ignorer)
     elif zipfile.is_zipfile(source):
         cible.mkdir(parents=True, exist_ok=True)
         _extraire_zip(source, cible, budget)
@@ -97,7 +107,7 @@ def decompresser(source: Path, cible: Path) -> list[Path]:
                 f"{fichier} : archive {fichier.suffix} copiée telle quelle "
                 "(format non décompressable, utilisez 7-Zip puis relancez init)."
             )
-    return fichiers
+    return fichiers, budget.complet
 
 
 class _Budget:
@@ -106,14 +116,15 @@ class _Budget:
     def __init__(self) -> None:
         self.octets = _MAX_OCTETS_EXTRAITS
         self.fichiers = _MAX_FICHIERS_EXTRAITS
+        self.complet = True
 
 
-def _ignorer_liens(dossier: str, noms: list[str]) -> set[str]:
-    """Pour copytree : un lien symbolique d'un DCE en dossier n'est pas suivi."""
+def _ignorer(dossier: str, noms: list[str]) -> set[str]:
+    """Écarte les liens symboliques et les parasites lors de la copie."""
     liens = {nom for nom in noms if (Path(dossier) / nom).is_symlink()}
     for nom in sorted(liens):
         _avertir(f"lien symbolique ignoré dans le DCE : {Path(dossier) / nom}")
-    return liens
+    return liens | {nom for nom in noms if _est_junk(Path(nom))}
 
 
 def _neutraliser_contextes(base: Path) -> None:
@@ -121,7 +132,7 @@ def _neutraliser_contextes(base: Path) -> None:
     fichiers de contexte (CLAUDE.md, AGENTS.md…) et tout fichier ou dossier caché
     (.claude/, .codex/, .cursorrules…)."""
     for chemin in sorted(base.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-        if _est_junk(chemin) or chemin.is_symlink():
+        if _est_junk(chemin.relative_to(base)) or chemin.is_symlink():
             continue
         nom = chemin.name
         if chemin.is_file() and nom.casefold() in _CONTEXTES_AGENT:
@@ -138,14 +149,16 @@ def _neutraliser_contextes(base: Path) -> None:
 
 def lister_fichiers(base: Path) -> list[Path]:
     """Fichiers sous `base`, hors parasites, triés."""
+    base = Path(base)
     return [
-        p for p in sorted(Path(base).rglob("*"), key=lambda p: p.as_posix())
-        if p.is_file() and not _est_junk(p)
+        p for p in sorted(base.rglob("*"), key=lambda p: p.as_posix())
+        if not _est_junk(p.relative_to(base)) and p.is_file()
     ]
 
 
 def _est_junk(chemin: Path) -> bool:
-    return any(partie in _JUNK for partie in chemin.parts)
+    return any(partie.casefold() in _JUNK or partie.startswith(("~$", "._"))
+               for partie in chemin.parts)
 
 
 def _chemin_dangereux(nom: str) -> bool:
@@ -162,19 +175,30 @@ def _chemin_dangereux(nom: str) -> bool:
     return False
 
 
+def _nom_zip(info: zipfile.ZipInfo) -> str:
+    """Relit en UTF-8 un nom de ZIP sans drapeau, avec repli sur le CP437."""
+    if info.flag_bits & 0x800:
+        return info.filename
+    try:
+        return info.filename.encode("cp437").decode("utf-8")
+    except UnicodeError:
+        return info.filename
+
+
 def _extraire_zip(chemin_zip: Path, base: Path, budget: _Budget) -> None:
     """Extrait un .zip membre par membre, en sautant entrées dangereuses."""
     try:
         with zipfile.ZipFile(chemin_zip) as zf:
             base_resolue = base.resolve()
             for info in zf.infolist():
-                nom = info.filename
+                nom = _nom_zip(info)
                 if info.is_dir() or _est_junk(Path(nom)):
                     continue
                 if _chemin_dangereux(nom):
                     _avertir(f"entrée d'archive refusée (chemin sortant ou nom invalide) : {nom!r}")
                     continue
                 if budget.fichiers < 1:
+                    budget.complet = False
                     _avertir(f"{chemin_zip} : extraction arrêtée, plus de 20 000 fichiers")
                     return
                 budget.fichiers -= 1
@@ -190,11 +214,14 @@ def _extraire_zip(chemin_zip: Path, base: Path, budget: _Budget) -> None:
                             break
                         sortie.write(bloc)
                 if budget.octets < 0:
+                    budget.complet = False
                     destination.unlink(missing_ok=True)
                     _avertir(f"{chemin_zip} : extraction arrêtée, plus de 2 Go décompressés")
                     return
     except (zipfile.BadZipFile, OSError) as erreur:
-        _avertir(f"{chemin_zip} : archive non extraite ({erreur})")
+        budget.complet = False
+        motif = diagnostic_chemin_trop_long(erreur) or str(erreur)
+        _avertir(f"{chemin_zip} : archive non extraite ({motif})")
 
 
 def _dezipper_recursif(base: Path, budget: _Budget) -> None:
@@ -203,9 +230,8 @@ def _dezipper_recursif(base: Path, budget: _Budget) -> None:
     traites: set[Path] = set()
     for _ in range(_MAX_IMBRICATION):
         zips = [
-            p for p in sorted(base.rglob("*"), key=lambda p: p.as_posix())
-            if p.is_file() and p.suffix.lower() == ".zip"
-            and p.resolve() not in traites
+            p for p in lister_fichiers(base)
+            if p.suffix.lower() == ".zip" and p.resolve() not in traites
         ]
         if not zips:
             return
@@ -217,7 +243,8 @@ def _dezipper_recursif(base: Path, budget: _Budget) -> None:
             zip_interne.unlink(missing_ok=True)
             if not any(destination.rglob("*")):
                 destination.rmdir()
-    if any(p.suffix.lower() == ".zip" for p in base.rglob("*") if p.is_file()):
+    if any(p.suffix.lower() == ".zip" for p in lister_fichiers(base)):
+        budget.complet = False
         _avertir(f"archives imbriquées sur plus de {_MAX_IMBRICATION} niveaux : "
                  "les plus profondes restent compressées")
 
@@ -254,7 +281,7 @@ def convertir(piece: Path) -> Conversion:
             texte="",
             statut="illisible",
             pages=None,
-            motif=f"{type(erreur).__name__}: {erreur}",
+            motif=diagnostic_chemin_trop_long(erreur) or f"{type(erreur).__name__}: {erreur}",
         )
 
 
