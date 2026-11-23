@@ -71,6 +71,8 @@ PROCEDURES = {
 
 def _en_tete(texte, origine):
     """Renvoie l'en-tête YAML d'une fiche, lu strictement."""
+    # Une extraction Git sous Windows peut écrire les fins de ligne en CRLF.
+    texte = texte.replace("\r\n", "\n")
     assert texte.startswith("---\n"), f"{origine} : pas de front matter"
     fin = texte.find("\n---\n", 4)
     assert fin != -1, f"{origine} : front matter non fermé"
