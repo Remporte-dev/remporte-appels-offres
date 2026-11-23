@@ -38,7 +38,9 @@ Règles qui valent pour tout le dossier :
   colonne, ligne, couleur, légende ni commentaire ajouté. Tes notes vivent dans
   tes propres fichiers.
 - Écris en français, pour un acheteur public : concret, vérifiable, sans
-  formule creuse.
+  formule creuse. Tout texte remis à l'acheteur suit `remporte guide style`.
+- Ce qui part chez l'acheteur est relu par un agent qui ne l'a pas écrit, puis
+  recoupé avec le reste du dossier avant l'export.
 - Quand tu rends la main à l'utilisateur, va droit au but. Si quelque chose
   bloque : le blocage en une phrase, ce que tu attends de lui, ta
   recommandation. Si le travail est fini : le résultat en une phrase et le

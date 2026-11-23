@@ -110,6 +110,15 @@ l'abonnement et ton propre contexte :
 
 Si un agent spécialisé est indisponible, transmets la procédure correspondante et le chemin du dossier à un sous-agent générique si l’environnement en propose un. Sinon, exécute toi-même cette étape avec `remporte guide <étape>`, dans le même ordre. Pour la rédaction et la relecture, applique le même recours. Pendant la relecture, ne modifie aucune section.
 
+Avant que l'étape suivante ne parte, fais relire l'analyse, le plan et chaque pièce
+par un agent qui ne les a pas produits ; il écrit `relectures/<étape>.md`. Applique
+ses corrections ; ne passe pas à l'export tant qu'une relecture signale un point
+bloquant. Quand toutes les pièces sont prêtes, lance le contrôle de cohérence
+(`06-coherence.md`, sous-agent `remporte:controleur-coherence`) en même temps que la
+relecture du mémoire. Applique leurs corrections, et soumets à l'utilisateur, en une
+seule fois et avec ta recommandation, les écarts marqués « à trancher par
+l'utilisateur ».
+
 ## Les autres pièces à remettre
 
 Après la décision de ne pas produire de mémoire, ou une fois le mémoire terminé et

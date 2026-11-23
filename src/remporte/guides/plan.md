@@ -1,4 +1,4 @@
-# Étape « plan » — la trame du mémoire
+# Étape « plan » : la trame du mémoire
 
 > Puissance de modèle conseillée : standard (la plus capable si le CRT est long) (`remporte guide modeles`).
 
@@ -13,7 +13,7 @@ avec une grille cherche ses rubriques à leur place.
 Si `remporte cadre` indique « origine : liste », le CRT numérote ses
 exigences (« PP 001 », « PP 002 »…) et **l'acheteur note chacune d'elles**.
 Regroupe-les par chapitre en sections, et indique dans chaque ligne du plan
-les identifiants qu'elle traite (`- [ ] 03 — 5.1 Initialisation (PP 013 à
+les identifiants qu'elle traite (`- [ ] 03 - 5.1 Initialisation (PP 013 à
 PP 019)`). Aucune exigence ne doit rester sans section.
 
 ## Sinon
@@ -25,7 +25,7 @@ mots.
 
 ## Règles
 
-- Une ligne par section : `- [ ] 01 — Compréhension du besoin`. Numéros sur
+- Une ligne par section : `- [ ] 01 - Compréhension du besoin`. Numéros sur
   deux chiffres, dans l'ordre du mémoire.
 - Tableau de correspondance : chaque section en face du critère qu'elle sert,
   de son poids, et d'un volume visé proportionnel au poids et compatible avec

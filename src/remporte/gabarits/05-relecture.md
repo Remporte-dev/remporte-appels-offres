@@ -12,6 +12,12 @@
 
 <!-- à remplir -->
 
+## Style
+
+| Section | Phrase relevée | Réécriture |
+|---|---|---|
+<!-- à remplir -->
+
 ## Informations manquantes à fournir par l'entreprise
 
 <!-- à remplir -->

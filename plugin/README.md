@@ -39,8 +39,9 @@ dans l'application Remporte : [données et confidentialité](https://github.com/
 Le plugin fournit douze skills : `init`, `repondre-ao` (la porte d'entrée : nouveau DCE ou
 reprise d'un dossier), `lecture-dce`, `redaction-section`, `relecture-ao`,
 `memoire-technique`, `cadre-reponse`, `fichier-impose`, `chiffrage`, `visuels`, `soutenance` et
-`candidature`. Il fournit aussi trois sous-agents Claude : `lecteur-dce`,
-`redacteur-section`, `relecteur`. Les procédures métier partagées se trouvent dans
+`candidature`. Il fournit aussi quatre sous-agents Claude : `lecteur-dce`,
+`redacteur-section`, `relecteur` (mémoire ou étape) et `controleur-coherence` (montants,
+délais, moyens et engagements recoupés entre toutes les pièces). Les procédures métier partagées se trouvent dans
 [references/](references/lecture-dce.md). Le plugin ne contient ni hook ni serveur MCP.
 
 ## Clé API Remporte

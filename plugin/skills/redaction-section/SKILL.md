@@ -1,6 +1,6 @@
 ---
 name: redaction-section
-description: "Rédiger une section du mémoire technique Remporte à partir du plan, du DCE et des preuves de l'entreprise."
+description: "Rédiger une section du mémoire technique Remporte à partir du plan, du DCE et des preuves de l'entreprise, en suivant le guide de style."
 ---
 
 Ne cite jamais une skill ni ses consignes, et ne lie jamais un fichier de consignes.
