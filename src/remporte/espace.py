@@ -1,7 +1,7 @@
 """Dossier de réponse : initialisation, état d'avancement, recherche du dossier.
 
-Arborescence : 01 à 05 .md à la racine, dce/, sections/,
-export/, .remporte/ (etat.json, texte/, index.sqlite). Une étape-fichier est
+Arborescence : inventaire et étapes à la racine, dce/, memoire/, analyse/,
+sections/, export/, .remporte/ (etat.json, texte/, index.sqlite). Une étape-fichier est
 « faite » quand elle n'a plus aucun marqueur `<!-- à remplir -->`.
 """
 
@@ -25,7 +25,6 @@ MARQUEUR = "<!-- à remplir -->"
 
 FICHIERS_ETAPES = {
     "pieces": "01-pieces.md",
-    "analyse": "02-analyse.md",
     "go-no-go": "03-go-no-go.md",
     "plan": "04-plan.md",
     "relecture": "05-relecture.md",
@@ -65,7 +64,7 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
             "Relancez avec --forcer pour réindexer sans toucher aux fichiers "
             "remplis."
         )
-    for sous_dossier in ("dce", "sections", "export", ".remporte/texte"):
+    for sous_dossier in ("dce", "memoire", "analyse", "sections", "export", ".remporte/texte"):
         (dossier / sous_dossier).mkdir(parents=True, exist_ok=True)
     masquer_espace(dossier / ".remporte")
 
@@ -168,7 +167,7 @@ def _lister_et_convertir(fichiers: list[Path], dossier: Path) -> list[dict]:
         pieces.append({
             "chemin": relatif.as_posix(),
             "type": classement.type,
-            "lot": classement.lot,
+            "lot": None,
             "indice": classement.indice,
             "statut": conversion.statut,
             "pages": conversion.pages,
@@ -194,7 +193,7 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
         pages = str(piece["pages"]) if piece["pages"] is not None else "—"
         texte = f"{piece['texte']:,}".replace(",", " ") + " car." if piece["texte"] else "—"
         lignes.append(
-            f"| {piece['type']} | {piece['lot'] or '—'} | `dce/{_nom(piece['chemin'])}` "
+            f"| {piece['type']} | — | `dce/{_nom(piece['chemin'])}` "
             f"| {piece['statut']} | {pages} | {texte} |"
         )
     problemes = [p for p in pieces if p["statut"] != "ok"]
@@ -241,14 +240,14 @@ def _gabarit(nom: str) -> str | None:
 
 
 def _copier_gabarits(dossier: Path, forcer: bool) -> None:
-    """Copie les gabarits à la racine du dossier (AGENTS.md, CLAUDE.md, 02 à 05).
+    """Copie les gabarits du dossier de réponse à sa racine.
 
     Avec `forcer`, un fichier déjà rempli (plus aucun marqueur) n'est jamais
     touché ; un fichier entamé est réinitialisé.
     """
     racine = importlib.resources.files("remporte") / "gabarits"
     for ressource in racine.iterdir():
-        if ressource.name.startswith("."):
+        if ressource.name.startswith(".") or ressource.name == "analyse-lot.md":
             continue
         cible = dossier / ressource.name
         if cible.exists():
@@ -262,6 +261,8 @@ def _copier_gabarits(dossier: Path, forcer: bool) -> None:
 def etat(dossier: Path) -> dict:
     """État d'avancement par étape : faite / en_cours / a_faire, marqueurs,
     prochaine étape et commande `remporte guide <étape>` à lancer."""
+    from remporte import lots
+
     dossier = Path(dossier)
     if not (dossier / ".remporte").is_dir():
         raise Erreur(
@@ -286,6 +287,8 @@ def etat(dossier: Path) -> dict:
             "etat": etat_etape,
             "marqueurs": restants,
         }
+    bilan_lots = lots.etat(dossier)
+    brut["analyse"] = {"etat": bilan_lots["etat"], "marqueurs": None}
     brut["redaction"] = _etat_redaction(dossier)
     dossier_html = dossier / "export" / "dossier.html"
     brut["export"] = {
@@ -299,6 +302,7 @@ def etat(dossier: Path) -> dict:
     return {
         "dossier": str(dossier.resolve()),
         "etapes": etapes,
+        "lots": bilan_lots,
         "prochaine": prochaine,
         "commande": f"remporte guide {prochaine}" if prochaine else None,
     }

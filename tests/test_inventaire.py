@@ -63,18 +63,6 @@ def test_classer_sans_indice():
     assert resultat.indice == "aucun"
 
 
-def test_lot_detecte_dans_le_nom():
-    cas = [
-        ("cctp lot 2.pdf", "2"),
-        ("DQE-LOT02.xls", "2"),
-        ("L2_CCTP.docx", "2"),
-        ("planning-l12.pdf", "12"),
-    ]
-    for nom, lot in cas:
-        assert classer(Path(nom), "").lot == lot
-    assert classer(Path("cctp.pdf"), "").lot is None
-
-
 def test_classer_prend_la_premiere_mention_de_l_en_tete():
     """Le type est celui de la première mention de l'en-tête, pas celui de la
     première catégorie de la liste : un acte d'engagement qui cite le CCAP
