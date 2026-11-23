@@ -1,13 +1,9 @@
-"""Sigles et numéros courts dans la recherche (lot B, 2.4).
+"""Sigles et numéros courts dans la recherche.
 
 La requête FTS jetait les termes de deux lettres ou moins : chercher « AE »,
 « RC » ou « 12 » ne trouvait rien, alors que ces sigles et numéros sont
 partout dans un DCE. Contrat : les termes d'au moins deux caractères sont
-cherchés. (Le fermé va jusqu'à chercher les termes d'un seul caractère : ce
-point n'est pas exigé ici, voir le rapport.)
-
-Repris du fermé : tests/test_recherche.py::test_recherche_sigle_et_numero_courts,
-étendu à AE et 12.
+cherchés.
 """
 
 from __future__ import annotations

@@ -1,13 +1,10 @@
-"""Le dossier personnel n'est pas un dossier de réponse (lot B, 1.4).
+"""Le dossier personnel n'est pas un dossier de réponse.
 
 `trouver_dossier` remontait les parents et s'arrêtait à la seule présence de
 `.remporte/`. Or la base d'entreprise vit dans `~/.remporte/base/` : toute
 session ouverte sous le dossier personnel prenait donc `~` pour un dossier de
 réponse. Contrat : un dossier de réponse se reconnaît à son fichier d'état
 `.remporte/etat.json`, celui qu'écrit `remporte init`.
-
-Repris du fermé : tests/test_espace.py::test_dossier_personnel_n_est_pas_un_dossier_de_reponse
-et le corps de `ferme/src/remporte/espace.py::trouver_dossier`.
 """
 
 from __future__ import annotations

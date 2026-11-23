@@ -1,14 +1,10 @@
-"""Sortie du CLI en UTF-8, même sur une console Windows en cp1252 (lot B, 1.2).
+"""Sortie du CLI en UTF-8, même sur une console Windows en cp1252.
 
 Sous Windows, une console ou une redirection en cp1252 est l'encodage par
 défaut de sys.stdout et sys.stderr : un caractère hors de ce jeu (une flèche
 →, un ≥) fait planter la commande ou dénature la sortie qu'un agent lit.
 Contrat : à l'entrée de `remporte.cli.main`, les deux flux sont reconfigurés
 en UTF-8 ; la sortie part en UTF-8, sans erreur, où qu'elle soit lue.
-
-Repris de la lecture du fermé (`ferme/src/remporte/cli.py` : `reconfigure`
-au début de main ; même contrat testé côté fermé en sous-processus dans
-tests/test_symboles_windows.py, ici en flux remplacés dans le processus).
 
 Note de test : le remplacement des flux se fait dans le corps du test, pas
 dans une fixture — pytest repose sa capture entre les phases setup et call

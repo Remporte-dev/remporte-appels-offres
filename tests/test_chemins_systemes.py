@@ -1,17 +1,14 @@
-"""Limites des systèmes de fichiers : chemins trop longs, dossier masqué (lot B, 1.6 et 1.7).
+"""Limites des systèmes de fichiers : chemins trop longs, dossier masqué.
 
-1.6 — Sous Windows, un nom de fichier trop long sort une erreur technique
+Sous Windows, un nom de fichier trop long sort une erreur technique
 brute (OSError : errno ENAMETOOLONG côté POSIX, winerror 206 ou un nom
 invalide winerror 123 côté Windows). Contrat : le système reconnaît ces
 erreurs et le CLI rend le message métier « Chemin trop long pour le
-système… » au lieu de l'erreur brute. Libellé repris du fermé
-(`ferme/src/remporte/chemins.py::diagnostic_chemin_trop_long`).
+système… » au lieu de l'erreur brute.
 
-1.7 — Le dossier `.remporte` d'un dossier de réponse doit être masqué
+Le dossier `.remporte` d'un dossier de réponse doit être masqué
 (attribut caché) à sa création sous Windows ; ailleurs, rien ne change ; et
 un échec du masquage n'empêche pas la création du dossier de réponse.
-(`ferme/src/remporte/chemins.py::masquer_espace`, appelé par init dans
-`ferme/src/remporte/espace.py`.)
 """
 
 from __future__ import annotations
@@ -30,9 +27,7 @@ from remporte.cli import main
 
 
 def _chemins():
-    """Import paresseux : `remporte.chemins` est créé par le lot B. L'import
-    est fait dans les tests plutôt qu'en tête pour ne pas interrompre la
-    collecte des autres fichiers tant que le module n'existe pas."""
+    """Module des diagnostics de chemins."""
     from remporte import chemins
     return chemins
 
