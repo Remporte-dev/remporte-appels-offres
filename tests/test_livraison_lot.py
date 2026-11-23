@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 import zipfile
 from pathlib import Path
 
@@ -199,6 +200,10 @@ def test_livraison_remplace_les_caracteres_interdits_de_l_intitule(
 
 
 def test_livraison_retire_point_et_espace_de_fin_de_l_intitule(dossier: Path, capsys):
+    """Un intitulé qui finit par un point ou un espace ne donne pas de nom de
+    dossier pollué. Les noms attendus sont relevés par `iterdir()` et non par
+    `Path.exists()` : sous Windows, un chemin terminé par un point résout
+    vers le nom sans point, et l'existence masquerait la pollution."""
     tri = tri_alloti()
     tri["lots"] = [lot_intitule("06", "Voirie et réseaux divers."),
                    lot_intitule("07", "Éclairage public ")]
@@ -206,11 +211,14 @@ def test_livraison_retire_point_et_espace_de_fin_de_l_intitule(dossier: Path, ca
     choisir_lots(dossier, "06,07")
     assert main(["livraison", "dossier", "--lot", "06",
                  "--dossier", str(dossier)]) == 0
-    assert (dossier / "reponse" / "Lot 06 - Voirie et réseaux divers").is_dir()
-    assert not (dossier / "reponse" / "Lot 06 - Voirie et réseaux divers.").exists()
+    capsys.readouterr()
     assert main(["livraison", "dossier", "--lot", "07",
                  "--dossier", str(dossier)]) == 0
-    assert (dossier / "reponse" / "Lot 07 - Éclairage public").is_dir()
+    capsys.readouterr()
+    noms = {p.name for p in (dossier / "reponse").iterdir() if p.is_dir()}
+    assert "Lot 06 - Voirie et réseaux divers" in noms, noms
+    assert "Lot 07 - Éclairage public" in noms, noms
+    assert not any(n.endswith(".") or n.endswith(" ") for n in noms), noms
 
 
 def test_livraison_reprend_le_dossier_de_lot_existant(dossier: Path, capsys):
@@ -226,6 +234,86 @@ def test_livraison_reprend_le_dossier_de_lot_existant(dossier: Path, capsys):
     dossiers = sorted(p.name for p in (dossier / "reponse").iterdir() if p.is_dir())
     # pas de second dossier malgré l'intitulé changé dans lots.json
     assert dossiers == ["Lot 02 - Ancien intitulé"]
+
+
+def test_livraison_attribue_au_lot_au_prefixe_le_plus_long(dossier: Path, capsys):
+    """Les identifiants valides « 02 » et « 02 - A » emboîtent leurs préfixes :
+    le dossier « Lot 02 - A - … » appartient au lot 02 - A (préfixe le plus
+    long), jamais au lot 02 — sinon les deux lots se partageraient le même
+    dossier de remise et un remplacement autorisé pour l'un écraserait les
+    formulaires de l'autre."""
+    tri = tri_alloti()
+    tri["lots"] = [lot_intitule("02", "Courants faibles"),
+                   lot_intitule("02 - A", "Courants faibles")]
+    enregistrer_tri(dossier, tri)
+    choisir_lots(dossier, "02,02 - A")
+
+    # le dossier du lot « 02 - A » est créé le premier
+    assert main(["livraison", "dossier", "--lot", "02 - A",
+                 "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    dossier_a = dossier / "reponse" / "Lot 02 - A - Courants faibles"
+    assert dossier_a.is_dir()
+
+    # le lot « 02 » reçoit son propre dossier, jamais celui de « 02 - A »
+    assert main(["livraison", "dossier", "--lot", "02",
+                 "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr().out
+    dossier_02 = dossier / "reponse" / "Lot 02 - Courants faibles"
+    assert dossier_02.is_dir()
+    assert str(dossier_02.resolve()) in sortie, sortie
+    assert str(dossier_a.resolve()) not in sortie, sortie
+    noms = sorted(p.name for p in (dossier / "reponse").iterdir() if p.is_dir())
+    assert noms == ["Lot 02 - A - Courants faibles", "Lot 02 - Courants faibles"], noms
+
+    # la candidature du lot 02 atterrit chez lui, pas chez « 02 - A »
+    preparer_candidature(dossier)
+    assert main(["candidature", "remplir", "--lot", "02",
+                 "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert (dossier_02 / "DC1.docx").is_file()
+    assert not (dossier_a / "DC1.docx").exists()
+
+
+def test_livraison_reprend_un_dossier_renomme_en_minuscules(dossier: Path, capsys):
+    """La comparaison des préfixes ignore la casse : un dossier renommé en
+    minuscules reste celui du lot, et le chemin rendu est celui réellement
+    observé dans reponse/, pas celui recalculé depuis le tri."""
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
+    ancien = dossier / "reponse" / "Lot 02 - Ancien intitulé"
+    ancien.mkdir(parents=True)
+    renomme = ancien.with_name("lot 02 - ancien intitulé")
+    ancien.rename(renomme)
+
+    assert main(["livraison", "dossier", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr().out
+    assert str(renomme.resolve()) in sortie, sortie
+    noms = {p.name for p in (dossier / "reponse").iterdir() if p.is_dir()}
+    assert noms == {"lot 02 - ancien intitulé"}, noms  # aucun second dossier
+
+
+def test_livraison_reprend_un_dossier_au_prefixe_decompose(dossier: Path, capsys):
+    """Un ancien dossier créé avec un préfixe en Unicode décomposé (NFD) est
+    repris pour le même lot écrit en NFC ; aucun second dossier n'est créé."""
+    tri = tri_alloti()
+    tri["lots"] = [lot_intitule("Élec", "Installation électrique")]
+    enregistrer_tri(dossier, tri)
+    choisir_lots(dossier, "Élec")
+
+    ancien = dossier / "reponse" / "Lot Élec - Ancien intitulé"
+    decompose = unicodedata.normalize("NFD", "Lot Élec - Ancien intitulé")
+    ancien.mkdir(parents=True)
+    ancien.rename(ancien.with_name(decompose))
+    ancien = ancien.with_name(decompose)
+    if ancien.name != decompose:
+        pytest.skip("le système de fichiers normalise les noms (pas de test NFD)")
+
+    assert main(["livraison", "dossier", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr().out
+    assert str(ancien.resolve()) in sortie, sortie
+    noms = {p.name for p in (dossier / "reponse").iterdir() if p.is_dir()}
+    assert noms == {decompose}, noms  # aucun second dossier
 
 
 def test_livraison_refuse_deux_dossiers_pour_le_meme_lot(dossier: Path, capsys):

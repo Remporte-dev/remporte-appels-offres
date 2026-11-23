@@ -26,6 +26,7 @@ import sys
 import textwrap
 import time
 import unicodedata
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -938,25 +939,23 @@ def test_le_dossier_d_attente_change_de_nom_a_chaque_commande(
 # ---------------------------------------------------------------------------
 
 def test_un_refus_de_droits_parle_de_droits_et_pas_de_fichier_a_fermer(
-        tmp_path, capsys):
-    """Sous macOS et Linux, un fichier ouvert ne bloque jamais une écriture :
-    un refus de droits (ici le dossier memoire/ mis en lecture seule, refus
-    réel du système) doit dire de vérifier les droits, jamais de fermer un
-    fichier."""
+        tmp_path, monkeypatch, capsys):
+    """Un refus de droits doit dire de vérifier les droits, jamais de fermer
+    un fichier. Le refus est simulé (Path.replace lève PermissionError sur
+    tout fichier nommé lots.json) : un chmod réel ne bloque rien sous Windows,
+    le test reste donc indépendant du système."""
     source = _dce_simple(tmp_path / "DCE")
     dossier = _initialiser(source, tmp_path, capsys)
     _ecrire_tri(dossier, _tri_simple())
     empreintes = _empreintes(dossier)
-    (dossier / "memoire").chmod(0o555)
-    try:
-        assert main(["lots", "enregistrer", "--dossier", str(dossier)]) != 0
-        message = "".join(capsys.readouterr())
-        assert ("Impossible d'écrire lots.json : vérifiez les droits du "
-                "dossier.") in message, message
-        assert "Fermez" not in message, message
-        assert _empreintes(dossier) == empreintes  # inventaire remis, tri intact
-    finally:
-        (dossier / "memoire").chmod(0o755)
+
+    _verrouiller(monkeypatch, "lots.json")
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) != 0
+    message = "".join(capsys.readouterr())
+    assert ("Impossible d'écrire lots.json : vérifiez les droits du "
+            "dossier.") in message, message
+    assert "Fermez" not in message, message
+    assert _empreintes(dossier) == empreintes  # inventaire remis, tri intact
 
 
 def test_un_fichier_tenu_par_un_autre_programme_sous_windows_parle_de_fermeture(
@@ -1012,21 +1011,45 @@ def test_une_interruption_pendant_le_choix_des_lots_se_repare_avec_lots_enregist
         tmp_path, monkeypatch, capsys):
     """Ctrl-C pendant `lots choisir`, entre le relevé du choix et la fin des
     publications (simulation : KeyboardInterrupt au dernier appel de
-    Path.replace). L'état qui reste doit se réparer par la commande prévue :
-    `lots enregistrer` relance la validation et remet le choix, sans qu'on
-    touche au tri à la main."""
+    Path.replace). L'ordre réel des publications est relevé au passage : le
+    relevé du choix doit être publié AVANT le tri, pour qu'une interruption
+    entre les deux laisse un état réparable (un tri publié sans son relevé
+    rendrait `lots enregistrer` incapable de réparer). L'état qui reste doit
+    se réparer par la commande prévue, sans toucher au tri à la main."""
     source = _dce_simple(tmp_path / "DCE")
     dossier = _initialiser(source, tmp_path, capsys)
     _enregistrer(dossier, capsys, _tri_simple())
     connus = _dossiers_directs(dossier / ".remporte")
 
-    # publications de `lots choisir` : deux analyses, le tri, le relevé du choix
-    _interrompre_a(monkeypatch, 4)
+    ordre: list[str] = []
+    original = Path.replace
+
+    def remplacer(self, cible, *args, **kwargs):
+        chemin = Path(cible)
+        ordre.append(chemin.relative_to(dossier).as_posix())
+        # publications de `lots choisir` : deux analyses, le relevé, le tri
+        if len(ordre) == 4:
+            raise KeyboardInterrupt
+        return original(self, cible, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "replace", remplacer)
     with pytest.raises(KeyboardInterrupt):
         main(["lots", "choisir", "--lots", "02", "--par", "Camille Exemple",
               "--dossier", str(dossier)])
     monkeypatch.undo()
     assert _dossiers_directs(dossier / ".remporte") == connus  # aucun reste
+
+    # l'ordre relevé avant tri : l'interruption est tombée sur le tri (4ᵉ
+    # publication visée) ; le 5ᵉ appel observé est la remise du relevé par le
+    # retour arrière. Un ordre inversé (tri publié sans son relevé) laisserait
+    # un tri qui porte un choix que le relevé n'a jamais validé : `lots
+    # enregistrer` refuserait alors de réparer.
+    premiere_fois: dict[str, int] = {}
+    for rang, relatif in enumerate(ordre):
+        premiere_fois.setdefault(relatif, rang)
+    assert ordre[3] == "memoire/lots.json", ordre
+    assert (premiere_fois[".remporte/lots.json"]
+            < premiere_fois["memoire/lots.json"]), ordre
 
     # l'interruption a tout remis comme avant : le choix n'est pas fait,
     # et la même commande passe ensuite normalement
@@ -1331,3 +1354,224 @@ def test_l_inventaire_est_remis_quand_l_enregistrement_echoue_apres_lui(
 
     assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
     capsys.readouterr()
+
+
+# ---------------------------------------------------------------------------
+# une création ne repasse jamais par un remplacement du nom réservé
+# ---------------------------------------------------------------------------
+
+def _relever_publications(monkeypatch) -> list[str]:
+    """Relève chaque renommage visé par la commande (Path.replace,
+    os.replace, os.rename : toutes les voies possibles selon la version de
+    pathlib). Une cible créée par la commande ne doit jamais y revenir."""
+    vises: list[str] = []
+    original_replace = Path.replace
+    original_os_replace = os.replace
+    original_os_rename = os.rename
+
+    def relever_path(self, cible, *args, **kwargs):
+        vises.append(Path(cible).as_posix())
+        return original_replace(self, cible, *args, **kwargs)
+
+    def relever_os_replace(source, cible, *args, **kwargs):
+        vises.append(Path(cible).as_posix())
+        return original_os_replace(source, cible, *args, **kwargs)
+
+    def relever_os_rename(source, cible, *args, **kwargs):
+        vises.append(Path(cible).as_posix())
+        return original_os_rename(source, cible, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "replace", relever_path)
+    monkeypatch.setattr(os, "replace", relever_os_replace)
+    monkeypatch.setattr(os, "rename", relever_os_rename)
+    return vises
+
+
+def test_les_formulaires_crees_ne_passent_pas_par_un_remplacement(
+        tmp_path, monkeypatch, capsys):
+    """DC1 et DC2 sont créés (absents au départ) : leur contenu s'écrit par le
+    descripteur ouvert exclusivement et le nom réservé n'est jamais remplacé
+    ensuite — le relevé des renommages ne doit viser aucun des deux, et les
+    fichiers finis ne sont jamais vides (sinon une écriture intercalée entre
+    l'ouverture et le renommage laisse une cible vide)."""
+    source = _dce_simple(tmp_path / "DCE")
+    dossier = _initialiser(source, tmp_path, capsys)
+    _enregistrer(dossier, capsys, _tri_simple())
+    _choisir(dossier, capsys)
+    _candidature_prete(dossier, capsys)
+
+    vises = _relever_publications(monkeypatch)
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) == 0
+    monkeypatch.undo()
+
+    remise = dossier / "reponse" / "Lot 02 - Électricité courants forts"
+    for nom in ("DC1.docx", "DC2.docx"):
+        chemin = remise / nom
+        assert chemin.is_file(), nom
+        assert chemin.stat().st_size > 0, f"{nom} est vide"
+    vises_formulaires = [v for v in vises
+                         if v.endswith("DC1.docx") or v.endswith("DC2.docx")]
+    assert not vises_formulaires, vises_formulaires
+    # le contenu publié est celui qui a été préparé, pas un fichier tronqué
+    with zipfile.ZipFile(remise / "DC1.docx") as archive:
+        document = archive.read("word/document.xml").decode("utf-8")
+    assert "Entreprise Exemple SAS" in document
+
+
+def test_les_analyses_creees_ne_passent_pas_par_un_remplacement(
+        tmp_path, monkeypatch, capsys):
+    """Les analyses nouvelles de `lots choisir` empruntent le même chemin de
+    création exclusive : aucun renommage ne vise lot-02.md ni lot-02.json, et
+    les fichiers arrivés ne sont jamais vides."""
+    source = _dce_simple(tmp_path / "DCE")
+    dossier = _initialiser(source, tmp_path, capsys)
+    _enregistrer(dossier, capsys, _tri_simple())
+
+    vises = _relever_publications(monkeypatch)
+    assert main(["lots", "choisir", "--lots", "02", "--par", "Camille Exemple",
+                 "--dossier", str(dossier)]) == 0
+    monkeypatch.undo()
+
+    for nom in ("lot-02.md", "lot-02.json"):
+        chemin = dossier / "analyse" / nom
+        assert chemin.is_file(), nom
+        assert chemin.stat().st_size > 0, f"{nom} est vide"
+    vises_analyses = [v for v in vises
+                      if v.endswith("lot-02.md") or v.endswith("lot-02.json")]
+    assert not vises_analyses, vises_analyses
+    texte = (dossier / "analyse" / "lot-02.md").read_text(encoding="utf-8")
+    assert MARQUEUR in texte  # le gabarit complet est arrivé, pas un tronçon
+
+
+def test_preparer_refuse_si_valeurs_json_apparait_pendant_la_creation(
+        tmp_path, monkeypatch, capsys):
+    """`candidature preparer` crée valeurs.json par ouverture exclusive : si
+    le fichier apparaît entre-temps, la commande refuse (message inchangé) et
+    la version arrivée reste intacte. Simulation : Path.open écrit un fichier
+    concurrent au moment de l'ouverture exclusive, puis laisse l'ouverture
+    réelle échouer."""
+    source = _dce_simple(tmp_path / "DCE")
+    dossier = _initialiser(source, tmp_path, capsys)
+    concurrent = b'{"ecrit_par": "un autre programme"}'
+    original = Path.open
+
+    def ouvrir(self, mode="r", *args, **kwargs):
+        if self.name == "valeurs.json" and "x" in str(mode):
+            # le fichier apparaît à l'instant : l'ouverture exclusive doit le voir
+            self.write_bytes(concurrent)
+        return original(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", ouvrir)
+    assert main(["candidature", "preparer", "--dossier", str(dossier)]) != 0
+    monkeypatch.undo()
+    message = "".join(capsys.readouterr())
+    assert "valeurs.json" in message, message
+    assert "existe déjà" in message, message
+    assert (dossier / "candidature" / "valeurs.json").read_bytes() == concurrent
+
+
+# ---------------------------------------------------------------------------
+# la sauvegarde non rétablie est gardée en récupération
+# ---------------------------------------------------------------------------
+
+def _publication_reussie_restauration_en_echec(monkeypatch, nom_publication: str,
+                                               nom_restauration: str) -> None:
+    """Deux échecs distincts : la publication du premier fichier nommé échoue
+    à son premier renommage, la restauration du second échoue à son second
+    (la publication vient toujours avant le retour arrière). Seules les
+    cibles sous reponse/ sont touchées : le déplacement d'une sauvegarde vers
+    la récupération, hors de reponse/, passe toujours. Simulation :
+    Path.replace lève PermissionError."""
+    original = Path.replace
+    compteur: dict[str, int] = {}
+
+    def remplacer(self, cible, *args, **kwargs):
+        chemin = Path(cible)
+        if "reponse" in chemin.as_posix():
+            nom = chemin.name
+            rang = compteur.get(nom, 0) + 1
+            compteur[nom] = rang
+            if ((nom == nom_publication and rang == 1)
+                    or (nom == nom_restauration and rang == 2)):
+                raise PermissionError(errno.EACCES, "Permission denied", str(chemin))
+        return original(self, cible, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "replace", remplacer)
+
+
+def test_la_sauvegarde_non_retablie_est_gardee_en_recuperation(
+        tmp_path, monkeypatch, capsys):
+    """DC1 est publié puis sa restauration échoue pendant le retour arrière
+    (la publication de DC2 a échoué juste avant) : la version d'avant doit
+    être gardée dans .remporte/recuperation/ — jamais nettoyée — et le
+    message doit donner son chemin. Sinon, la sauvegarde disparaît avec le
+    dossier d'attente et l'unique copie du formulaire retouché est perdue."""
+    source = _dce_simple(tmp_path / "DCE")
+    dossier = _initialiser(source, tmp_path, capsys)
+    _enregistrer(dossier, capsys, _tri_simple())
+    _choisir(dossier, capsys)
+    _candidature_prete(dossier, capsys)
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    remise = dossier / "reponse" / "Lot 02 - Électricité courants forts"
+    dc1_avant = (remise / "DC1.docx").read_bytes()
+    dc2_avant = (remise / "DC2.docx").read_bytes()
+    _changer_denomination(dossier, "Entreprise Exemple SAS et partenaires")
+
+    _publication_reussie_restauration_en_echec(monkeypatch, "DC2.docx", "DC1.docx")
+    assert main(["candidature", "remplir", "--remplacer",
+                 "--dossier", str(dossier)]) != 0
+    message = "".join(capsys.readouterr())
+    monkeypatch.undo()
+
+    assert "Impossible de rétablir DC1.docx" in message, message
+    recuperation = dossier / ".remporte" / "recuperation"
+    gardes = list(recuperation.iterdir()) if recuperation.is_dir() else []
+    gardes_dc1 = [p for p in gardes if p.name.endswith("DC1.docx")]
+    assert len(gardes_dc1) == 1, gardes
+    assert gardes_dc1[0].read_bytes() == dc1_avant  # l'original est retrouvé
+    assert gardes_dc1[0].name in message, message  # le message donne le chemin
+    # DC2, resté remisable, est bien revenu à sa version d'avant
+    assert (remise / "DC2.docx").read_bytes() == dc2_avant
+
+    # une commande suivante ne nettoie jamais la récupération
+    assert main(["lots", "rapport", "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert gardes_dc1[0].is_file()
+    assert gardes_dc1[0].read_bytes() == dc1_avant
+
+
+# ---------------------------------------------------------------------------
+# un volume sans verrou de fichier ne bloque pas la publication
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt",
+                    reason="le verrou POSIX fcntl n'existe pas sous Windows")
+@pytest.mark.parametrize("code,nom_erreur",
+                         [(errno.ENOTSUP, "ENOTSUP"),
+                          (errno.ENOLCK, "ENOLCK"),
+                          (errno.EOPNOTSUPP, "EOPNOTSUPP")],
+                         ids=["ENOTSUP", "ENOLCK", "EOPNOTSUPP"])
+def test_un_volume_sans_verrou_ne_bloque_pas_la_publication(
+        tmp_path, monkeypatch, capsys, code, nom_erreur):
+    """Si le volume refuse le verrou de fichier (clé exFAT, partage réseau),
+    la publication continue sans lui. Simulation : fcntl.flock est remplacé
+    et lève l'errno du volume, rien d'autre."""
+    def refuser(fileno, *args, **kwargs):
+        raise OSError(code, "Operation not supported")
+
+    monkeypatch.setattr("fcntl.flock", refuser)
+    source = _dce_simple(tmp_path / "DCE")
+    dossier = _initialiser(source, tmp_path, capsys)
+    _ecrire_tri(dossier, _tri_simple())
+
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert "commun" in (dossier / "01-pieces.md").read_text(encoding="utf-8")
+
+    assert main(["lots", "choisir", "--lots", "02", "--par", "Camille",
+                 "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert (dossier / "analyse" / "lot-02.md").is_file()
+    tri = json.loads((dossier / "memoire" / "lots.json").read_text("utf-8"))
+    assert tri["choix"]["retenus"] == ["02"]

@@ -328,6 +328,81 @@ def test_un_libelle_sans_date_et_limite_et_remise_ne_donne_pas_de_date(
     assert "3 juillet 2026" not in page, page
 
 
+# La rubrique pièces, titrée avec un double espace : `remporte etat` la
+# reconnaît (normalisation du titre partagée avec le validateur), la feuille
+# de route doit donc la reconnaître aussi.
+LOT_02_TITRE_DOUBLE_ESPACE = LOT_02.replace(
+    "## Pièces à remettre et formes imposées",
+    "## Pièces à remettre et  formes imposées")
+
+
+# Le libellé de la date limite porte des parenthèses imbriquées : le
+# séparateur « : » se cherche hors parenthèses, à toute profondeur.
+LOT_02_PARENS_IMBRIQUEES = LOT_02_LISTE.replace(
+    "- Date et heure limites de remise : 12 juin 2026 à 17 h 00 [RC art. 5]",
+    "- Date limite de remise (heure locale (Paris)) : 15 janvier 2027 à 17 h 00")
+
+LOT_02_PARENS_SIMPLES = LOT_02_LISTE.replace(
+    "- Date et heure limites de remise : 12 juin 2026 à 17 h 00 [RC art. 5]",
+    "- Date limite de remise (heure locale) : 15 janvier 2027 à 17 h 00")
+
+
+def _deux_analyses_pretes(dossier: Path, texte_lot_02: str) -> None:
+    """Les deux lots retenus ont une analyse conforme (aucun marqueur, JSON
+    de questions vide) : l'étape analyse est « faite » pour `remporte etat`."""
+    (dossier / "analyse" / "lot-02.md").write_text(texte_lot_02, encoding="utf-8")
+    (dossier / "analyse" / "lot-05.md").write_text(LOT_05, encoding="utf-8")
+    for lot in ("02", "05"):
+        (dossier / "analyse" / f"lot-{lot}.json").write_text(
+            json.dumps({"questions_acheteur": []}, ensure_ascii=False),
+            encoding="utf-8")
+
+
+def test_les_pieces_d_une_rubrique_titree_avec_double_espace_font_la_feuille(
+        dossier_pret: Path, capsys):
+    """`remporte etat` déclare le lot prêt malgré un double espace dans le
+    titre de la rubrique : la feuille de route lit les rubriques avec la même
+    normalisation et l'attestation placée dessous doit donc y figurer."""
+    _deux_analyses_pretes(dossier_pret, LOT_02_TITRE_DOUBLE_ESPACE)
+    bilan = espace.etat(dossier_pret)
+    assert bilan["etapes"]["analyse"]["etat"] == "faite"  # le validateur l'accepte
+
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert "DC1 et DC2" in page, page  # les pièces du lot 02 ne disparaissent pas
+
+
+def test_la_date_limite_survit_aux_parentheses_imbriquees(
+        dossier_pret: Path, capsys):
+    """« Date limite de remise (heure locale (Paris)) : … » : le séparateur
+    est trouvé malgré deux niveaux de parenthèses ; une seule paire, déjà
+    acceptée aujourd'hui, reste acceptée (contre-épreuve)."""
+    _deux_analyses_pretes(dossier_pret, LOT_02_PARENS_IMBRIQUEES)
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert "Date limite de remise" in page, page
+    assert "15 janvier 2027 à 17 h 00" in page, page
+
+    _deux_analyses_pretes(dossier_pret, LOT_02_PARENS_SIMPLES)
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert "15 janvier 2027 à 17 h 00" in page, page
+
+
+def test_analyse_html_a_un_titre_principal_et_le_go_no_go_en_intertitre(
+        dossier_pret: Path):
+    """analyse.html porte son propre titre principal (« Analyse du dossier »),
+    le go/no-go garde le sien comme intertitre — il ne fournit plus le titre
+    de la page par accident."""
+    page = export.exporter(dossier_pret, {"analyse"})["analyse"].read_text(encoding="utf-8")
+    assert re.search(r"<h1[^>]*>\s*Analyse du dossier\s*</h1>", page), page[:1500]
+    # l'intertitre du go/no-go reste présent dans le corps de la page
+    assert re.search(r"<h[1-3][^>]*>[^<]*Go / No-Go", page), page
+
+
 def test_matrice_exigences_crt(dossier_pret: Path, monkeypatch):
     """Avec exigences numérotées : identifiant, chapitre, demande, citation."""
     points = [

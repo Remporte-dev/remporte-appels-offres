@@ -71,6 +71,43 @@ def test_initialiser_forcer_garde_fichiers_remplis(tmp_path: Path, source_dce: P
     assert "à remplir" in (dossier / "04-plan.md").read_text(encoding="utf-8")
 
 
+def test_initialiser_forcer_conserve_une_etape_entamee_avec_marqueur(
+        tmp_path: Path, source_dce: Path):
+    """`init --forcer` ne réécrit un fichier d'étape que s'il est identique au
+    gabarit d'origine : un fichier entamé (paragraphe rédigé) qui garde un
+    marqueur n'est pas réinitialisé — sinon la réindexation efface une
+    rédaction en cours."""
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_dce, dossier)
+
+    plan = dossier / "04-plan.md"
+    plan_entame = (
+        "# Plan du mémoire\n\n"
+        "## Sections\n\n"
+        "- [ ] 01 — Moyens\n"
+        "- [ ] 02 — Prix\n\n"
+        "## À rédiger\n\n"
+        "Premier paragraphe rédigé par l'équipe, marqueur gardé pour la suite.\n"
+        "<!-- à remplir -->\n"
+    )
+    plan.write_text(plan_entame, encoding="utf-8")
+    decision = dossier / "03-go-no-go.md"
+    decision_entame = decision.read_text(encoding="utf-8").replace(
+        "## Décision\n\n<!-- à remplir -->",
+        "## Décision\n\nGo. Le besoin correspond au métier (fictif).\n"
+        "<!-- à remplir -->",
+    )
+    decision.write_text(decision_entame, encoding="utf-8")
+    assert "<!-- à remplir -->" in plan_entame
+    assert "<!-- à remplir -->" in decision_entame
+
+    espace.initialiser(source_dce, dossier, forcer=True)
+
+    # l'entame est conservée octet pour octet, marqueur compris
+    assert plan.read_text(encoding="utf-8") == plan_entame
+    assert decision.read_text(encoding="utf-8") == decision_entame
+
+
 def test_01_pieces_contenu(tmp_path: Path, source_dce: Path):
     dossier = tmp_path / "reponse"
     espace.initialiser(source_dce, dossier)

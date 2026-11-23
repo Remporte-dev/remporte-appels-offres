@@ -387,6 +387,14 @@ def _cas_type_hors_liste(dossier: Path) -> None:
     _ecrire_tri(dossier, tri)
 
 
+def _cas_type_en_double_apres_normalisation(dossier: Path) -> None:
+    # même type, même pièce désignée (double espace au lieu d'un seul) : la
+    # deuxième entrée est refusée, même quand le type est identique
+    tri = _tri_valide()
+    tri["types_pieces"]["dce/LOT  02/CCTP lot 02.pdf"] = "CCTP"
+    _ecrire_tri(dossier, tri)
+
+
 def _cas_choix_ecrit_par_l_agent(dossier: Path) -> None:
     tri = _tri_valide()
     tri["choix"] = {"retenus": ["02"], "par": "Agent",
@@ -414,6 +422,7 @@ FRAGMENTS_REFUS = {
     "piece_lisible_declaree_illisible": [["RC.pdf"]],
     "type_manquant": [["CCAP"]],
     "type_hors_liste": [["RCAP", "dce/RC.pdf"]],
+    "type_en_double_apres_normalisation": [["CCTP lot 02.pdf"]],
     # phrase imposée pour ce refus : l'agent ne choisit pas les lots
     "choix_ecrit_par_l_agent": [["Laisser le choix des lots vide"]],
 }
@@ -436,6 +445,7 @@ CAS_REFUS = [
     ("piece_lisible_declaree_illisible", _cas_piece_lisible_declaree_illisible),
     ("type_manquant", _cas_type_manquant),
     ("type_hors_liste", _cas_type_hors_liste),
+    ("type_en_double_apres_normalisation", _cas_type_en_double_apres_normalisation),
     ("choix_ecrit_par_l_agent", _cas_choix_ecrit_par_l_agent),
 ]
 
@@ -794,6 +804,13 @@ CAS_PROBLEMES = [
         question="Le dossier analyse/lot-02.md impose-t-il une visite ?"))),
     ("fragment_chemin_dce", _probleme_question(_question(
         question="Les pièces sous dce/RC.pdf doivent-elles être relues ?"))),
+    ("fragment_chemin_windows_dans_le_contexte", _probleme_question(_question(
+        contexte="Le CCTP renvoie à dce\\RC.pdf pour les prescriptions."))),
+    ("fragment_chemin_windows_dans_la_question", _probleme_question(_question(
+        question="Les prescriptions de analyse\\support.pdf s'appliquent-elles "
+                 "au lot ?"))),
+    ("fragment_chemin_windows_dans_les_sources", _probleme_question(_question(
+        sources=["CCTP article 4.2", "dce\\LOT 02\\CCTP lot 02.pdf"]))),
     ("fragment_commande_remporte", _probleme_question(_question(
         question="Faut-il lancer remporte etat avant la remise ?"))),
 ]
@@ -852,6 +869,104 @@ def test_rapport_sans_ouvrir_n_appelle_pas_le_navigateur(tmp_path, monkeypatch, 
     assert main(["lots", "rapport", "--dossier", str(dossier)]) == 0
     capsys.readouterr()
     assert appels == []
+
+
+def test_rapport_ouvrir_quand_le_navigateur_refuse_dit_la_page_a_ouvrir(
+        tmp_path, monkeypatch, capsys):
+    """Si `webbrowser.open` rend False, la commande réussit, la page reste
+    publiée et la sortie dit où elle est (« Page à ouvrir », `ouverte: false`
+    en JSON). Simulation : webbrowser.open est remplacé."""
+    dossier = _dossier_choix_fait(tmp_path, capsys)
+    appels: list[str] = []
+
+    def refuser(uri: str) -> bool:
+        appels.append(uri)
+        return False
+
+    monkeypatch.setattr(webbrowser, "open", refuser)
+    assert main(["lots", "rapport", "--dossier", str(dossier), "--ouvrir",
+                 "--json"]) == 0
+    sortie = json.loads(capsys.readouterr().out)
+    assert sortie["ok"] is True
+    assert sortie["ouverte"] is False
+    texte = json.dumps(sortie, ensure_ascii=False)
+    assert "Page à ouvrir" in texte, texte
+    assert "rapport-lots.html" in texte, texte
+    assert appels  # le navigateur a bien été sollicité
+    assert (dossier / "memoire" / "rapport-lots.html").is_file()
+
+
+def test_rapport_ouvrir_quand_le_navigateur_echoue_dit_la_page_a_ouvrir(
+        tmp_path, monkeypatch, capsys):
+    """Si `webbrowser.open` lève une erreur, la commande réussit quand même et
+    dit la page à ouvrir. Simulation : webbrowser.open est remplacé."""
+    dossier = _dossier_choix_fait(tmp_path, capsys)
+
+    def exploser(uri: str) -> bool:
+        raise RuntimeError("aucun navigateur disponible")
+
+    monkeypatch.setattr(webbrowser, "open", exploser)
+    assert main(["lots", "rapport", "--dossier", str(dossier), "--ouvrir"]) == 0
+    sortie = capsys.readouterr()
+    assert "Page à ouvrir" in sortie.out, sortie
+    assert "rapport-lots.html" in sortie.out, sortie
+    assert (dossier / "memoire" / "rapport-lots.html").is_file()
+
+
+# ---------------------------------------------------------------------------
+# nombres hors norme (NaN, Infinity, -Infinity) à l'entrée, sortie JSON stricte
+# ---------------------------------------------------------------------------
+
+def _refuser_constante(x: str):
+    raise AssertionError(f"constante JSON hors norme dans la sortie : {x}")
+
+
+@pytest.mark.parametrize("litteral", ["NaN", "Infinity", "-Infinity"])
+def test_enregistrer_refuse_les_nombres_hors_norme_du_tri(tmp_path, capsys, litteral):
+    """Un nombre NaN/Infinity/-Infinity du tri est refusé à la lecture : la
+    commande échoue sans rien modifier, et même sa sortie d'erreur reste du
+    JSON strict (aucune constante hors norme n'y revient)."""
+    dossier = _dossier_alorti(tmp_path, capsys)
+    brut = json.dumps(_tri_valide(), ensure_ascii=False)
+    brut = brut.replace('"choix": null', f'"choix": null, "controle": {litteral}')
+    _ecrire_tri(dossier, brut=brut)
+    avant = _contenus(dossier)
+    capsys.readouterr()
+
+    assert main(["lots", "enregistrer", "--dossier", str(dossier), "--json"]) != 0
+    sorti = capsys.readouterr()
+    objet = json.loads(sorti.out, parse_constant=_refuser_constante)
+    message = json.dumps(objet, ensure_ascii=False)
+    assert "lots.json" in message, message
+    assert "nombres valides" in message, message
+    assert _contenus(dossier) == avant
+
+
+def test_rapport_signale_les_nombres_hors_norme_de_l_analyse(tmp_path, capsys):
+    """Un Infinity dans analyse/lot-02.json est refusé à la lecture : le lot
+    est signalé en analyse en cours avec le conseil d'enregistrer le fichier
+    avec des nombres valides, sans bloquer le rapport du lot conforme."""
+    dossier = _dossier_choix_fait(tmp_path, capsys)
+    _analyse_faite(dossier, "02")
+    (dossier / "analyse" / "lot-02.json").write_text(
+        '{"questions_acheteur": [{"id": "I-1", '
+        '"contexte": "Deux pièces du lot donnent des valeurs différentes.", '
+        '"question": "Quelle valeur retenir ?", '
+        '"sources": ["CCTP article 4.2"], "impact_prix": Infinity}]}\n',
+        encoding="utf-8")
+    _analyse_faite(dossier, "05", _questions_conformes(1))
+    capsys.readouterr()
+
+    assert main(["lots", "rapport", "--dossier", str(dossier), "--json"]) == 0
+    sorti = capsys.readouterr()
+    sortie = json.loads(sorti.out, parse_constant=_refuser_constante)
+    assert sortie["ok"] is True
+    problemes = json.dumps(sortie.get("problemes"), ensure_ascii=False)
+    assert "lot-02.json" in problemes, problemes
+    assert "nombres valides" in problemes, problemes
+    page = (dossier / "memoire" / "rapport-lots.html").read_text(encoding="utf-8")
+    assert "Lot 02 – analyse en cours" in page, page
+    assert "Lot 05 – analyse prête" in page, page
 
 
 def test_rapport_exige_un_tri_enregistre(tmp_path, capsys):
