@@ -274,6 +274,10 @@ def _cmd_init(args) -> int:
     lues = sum(1 for p in pieces if p["statut"] == "ok")
     print(f"Dossier de réponse : {dossier}")
     print(f"Pièces : {len(pieces)} ({lues} converties)")
+    if donnees["retirees"]:
+        print(f"Pièces retirées ({len(donnees['retirees'])}) :")
+        for chemin in donnees["retirees"]:
+            print(f"  dce/{chemin}")
     for message in inventaire.pieces_attendues_absentes({p["type"] for p in pieces}):
         print(f"  ! {message}")
     a_remplir = sorted({p["type"] for p in pieces} & espace.PIECES_REMPLISSABLES)

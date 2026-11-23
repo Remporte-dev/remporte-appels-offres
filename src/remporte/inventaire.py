@@ -38,7 +38,8 @@ _PATTERNS_NOM = [
     ("CRT", re.compile(
         r"(?<![a-z0-9])crt(?![a-z0-9])"
         r"|cahier[\s_.-]*des[\s_.-]*r[ée]ponses?"
-        r"|cadre[\s_.-]*de[\s_.-]*r[ée]ponse", re.I)),
+        r"|cadre[\s_.-]*de[\s_.-]*r[ée]ponse"
+        r"|cadre[\s_.-]*(?:du|de|des)?[\s_.-]*m[ée]moires?[\s_.-]*techniques?", re.I)),
     ("DPGF", re.compile(
         r"(?<![a-z0-9])dpgf(?![a-z0-9])"
         r"|d[ée]composition[\s_.-]*du[\s_.-]*prix[\s_.-]*global"
@@ -81,7 +82,9 @@ _PATTERNS_CONTENU = [
         r"cahier des clauses (?:administratives|particulieres)|\bccap\b")),
     ("CCTP", re.compile(
         r"cahier des clauses techniques|\bcctp\b")),
-    ("CRT", re.compile(r"cahier des reponses|cadre de reponse|\bcrt\b")),
+    ("CRT", re.compile(
+        r"cahier des reponses|cadre de reponse"
+        r"|cadre (?:du|de|des) memoires? techniques?|\bcrt\b")),
     ("AE", re.compile(r"acte d'?engagement|attri ?1")),
     ("DPGF", re.compile(
         r"decomposition du prix global|detail (?:estimatif )?quantitatif"
@@ -113,9 +116,13 @@ def classer(chemin: Path, texte: str) -> Classement:
         if motif.search(chemin.name):
             return Classement(type_, lot, "nom")
     entete = _normaliser(texte[:_LONGUEUR_ENTETE])
+    premier: tuple[str, re.Match] | None = None
     for type_, motif in _PATTERNS_CONTENU:
-        if motif.search(entete):
-            return Classement(type_, lot, "contenu")
+        trouve = motif.search(entete)
+        if trouve and (premier is None or trouve.start() < premier[1].start()):
+            premier = (type_, trouve)
+    if premier is not None:
+        return Classement(premier[0], lot, "contenu")
     return Classement("AUTRE", lot, "aucun")
 
 

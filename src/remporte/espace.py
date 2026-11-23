@@ -12,9 +12,10 @@ import importlib.resources
 import json
 import re
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from remporte import formats, inventaire, recherche
-from remporte.lecture import convertir, decompresser
+from remporte.lecture import convertir, decompresser_avec_etat, lister_fichiers
 
 ETAPES = ["pieces", "analyse", "go-no-go", "plan", "redaction", "relecture",
           "export"]
@@ -50,8 +51,8 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
     """Crée l'arborescence, convertit et classe les pièces, indexe le DCE.
 
     Refuse si `dossier` contient déjà `.remporte/`, sauf `forcer=True` — qui
-    ne touche pas aux fichiers remplis (sans marqueur restant). Rend les
-    données écrites dans etat.json.
+    préserve les fichiers remplis et retire les pièces importées devenues
+    absentes de la source. Rend les données écrites dans etat.json.
     """
     source = Path(source)
     dossier = Path(dossier)
@@ -66,7 +67,10 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
     for sous_dossier in ("dce", "sections", "export", ".remporte/texte"):
         (dossier / sous_dossier).mkdir(parents=True, exist_ok=True)
 
-    fichiers = decompresser(source, dossier / "dce")
+    racine_dce = dossier / "dce"
+    precedentes = _pieces_importees(dossier)
+    importees, retirees = _importer_dce(source, racine_dce, precedentes)
+    fichiers = lister_fichiers(racine_dce)
     pieces = _lister_et_convertir(fichiers, dossier)
     _ecrire_inventaire(dossier, pieces, source)
     _copier_gabarits(dossier, forcer)
@@ -77,11 +81,76 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
         "cree_le": datetime.datetime.now().isoformat(timespec="seconds"),
         "source": str(source.resolve()),
         "pieces": pieces,
+        "importees": sorted(importees),
+        "retirees": retirees,
     }
     (dossier / ".remporte" / "etat.json").write_text(
         json.dumps(donnees, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return donnees
+
+
+def _pieces_importees(dossier: Path) -> set[str]:
+    """Chemins importés, distincts des ajouts manuels de l'inventaire."""
+    chemin = dossier / ".remporte" / "etat.json"
+    try:
+        donnees = json.loads(chemin.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return set()
+    if not isinstance(donnees, dict):
+        return set()
+    importees = donnees.get("importees")
+    if isinstance(importees, list):
+        return {chemin for chemin in importees if isinstance(chemin, str)}
+    # Les anciens inventaires ne distinguaient pas la provenance des pièces.
+    pieces = donnees.get("pieces")
+    if not isinstance(pieces, list):
+        return set()
+    return {p["chemin"] for p in pieces
+            if isinstance(p, dict) and isinstance(p.get("chemin"), str)}
+
+
+def _importer_dce(source: Path, racine: Path, precedentes: set[str]) -> tuple[set[str], list[str]]:
+    if source.samefile(racine):
+        chemins = {p.relative_to(racine).as_posix() for p in lister_fichiers(racine)}
+        return precedentes & chemins, []
+
+    # Lire à part la nouvelle source isole ses pièces, y compris celles des ZIP imbriqués.
+    with TemporaryDirectory(dir=racine.parent / ".remporte") as temporaire:
+        base = Path(temporaire)
+        fichiers, complet = decompresser_avec_etat(source, base)
+        if precedentes and not complet:
+            raise Erreur(f"Réimport du DCE arrêté : extraction incomplète de {source}")
+        importees = {p.relative_to(base).as_posix() for p in fichiers}
+        racine_resolue = racine.resolve()
+        for chemin in importees:
+            if not (racine / chemin).parent.resolve().is_relative_to(racine_resolue):
+                raise Erreur(f"Pièce du DCE hors du dossier de réponse : {chemin}")
+
+        retirees = _retirer_disparues(racine, precedentes - importees)
+        for fichier in fichiers:
+            destination = racine / fichier.relative_to(base)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            fichier.replace(destination)
+    return importees, retirees
+
+
+def _retirer_disparues(racine: Path, disparues: set[str]) -> list[str]:
+    retirees: list[str] = []
+    racine_texte = racine.parent / ".remporte" / "texte"
+    for chemin in sorted(disparues):
+        for base, nom in ((racine, chemin), (racine_texte, chemin + ".md")):
+            piece = base / nom
+            if not piece.resolve().is_relative_to(base.resolve()) or not piece.is_file():
+                continue
+            piece.unlink()
+            if base == racine:
+                retirees.append(chemin)
+            for parent in piece.parents:
+                if parent == base or any(parent.iterdir()):
+                    break
+                parent.rmdir()
+    return retirees
 
 
 def _lister_et_convertir(fichiers: list[Path], dossier: Path) -> list[dict]:
