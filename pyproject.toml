@@ -23,7 +23,7 @@ Issues = "https://github.com/Remporte-dev/remporte-appels-offres/issues"
 remporte = "remporte.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pyyaml>=6"]
 
 [build-system]
 requires = ["hatchling>=1.26,<2"]
