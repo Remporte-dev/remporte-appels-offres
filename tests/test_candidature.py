@@ -3,6 +3,9 @@
 Chaque valeur est relue à l'endroit exact du XML (paragraphe visé, case
 cochée) : une valeur écrite au mauvais endroit est pire qu'un champ vide.
 Toutes les données sont manifestement fictives.
+
+Les formulaires remplis vont dans le dossier de remise (`reponse/` pour un
+marché non alloti) ; `candidature/` ne porte plus que `valeurs.json`.
 """
 
 from __future__ import annotations
@@ -165,7 +168,7 @@ def test_remplir_dc1_ecrit_aux_bons_endroits(dossier: Path):
     assert resultat["non_produits"][0]["formulaire"] == "DC4"
     assert resultat["anomalies"] == {}
 
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert "Mairie d'Exemple" in paragraphes[19]
     assert "[réf. : 2026-001]" in paragraphes[19]
     assert "Prestations d'essai (fictif)" in paragraphes[29]
@@ -187,7 +190,7 @@ def test_remplir_dc1_laisse_vides_les_champs_sans_valeur(dossier: Path):
     assert "denomination" not in resultat["non_remplis"]["DC1"]
     assert "acheteur" in resultat["non_remplis"]["DC1"]
     assert "lot_numero" in resultat["optionnels_vides"]["DC1"]
-    paragraphes, _ = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    paragraphes, _ = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert paragraphes[19] == "A - Identification de l’acheteur"
     assert paragraphes[64].endswith("Entreprise Exemple SAS")
 
@@ -209,7 +212,7 @@ def test_remplir_dc2_ecrit_aux_bons_endroits(dossier: Path):
     ecrire_valeurs(dossier, valeurs)
     candidature.remplir(dossier)
 
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC2.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC2.docx")
     # l'identité tombe bien sur la ligne du champ (2ᵉ occurrence du libellé),
     # pas sur l'encadré d'intro de la rubrique C1 (paragraphe 40)
     assert "Entreprise Exemple SAS" in paragraphes[42]
@@ -229,14 +232,14 @@ def test_remplir_dc2_ecrit_aux_bons_endroits(dossier: Path):
 def test_remplir_dc4_produit_seulement_avec_sous_traitance(dossier: Path):
     remplir_dc4(dossier)
     candidature.remplir(dossier)
-    assert (dossier / "candidature" / "DC4.docx").exists()
+    assert (dossier / "reponse" / "DC4.docx").exists()
 
     valeurs = charger_valeurs(dossier)
     valeurs["DC4"]["champs"]["sous_traitance"]["valeur"] = False
     ecrire_valeurs(dossier, valeurs)
-    (dossier / "candidature" / "DC4.docx").unlink()
-    resultat = candidature.remplir(dossier)
-    assert not (dossier / "candidature" / "DC4.docx").exists()
+    (dossier / "reponse" / "DC4.docx").unlink()
+    resultat = candidature.remplir(dossier, remplacer=True)
+    assert not (dossier / "reponse" / "DC4.docx").exists()
     assert resultat["non_produits"][0]["formulaire"] == "DC4"
 
 
@@ -244,7 +247,7 @@ def test_remplir_dc4_distingue_titulaire_et_sous_traitant(dossier: Path):
     remplir_dc4(dossier)
     resultat = candidature.remplir(dossier)
     assert resultat["anomalies"] == {}
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC4.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC4.docx")
     # D (titulaire) et E (sous-traitant) portent les mêmes libellés : la
     # 1ʳᵉ occurrence va au titulaire, la 2ᵉ au sous-traitant
     assert paragraphes[51].endswith("Entreprise Exemple SAS")
@@ -278,7 +281,7 @@ def test_choix_hors_liste_est_anomalie_et_ne_coche_rien(dossier: Path):
     ecrire_valeurs(dossier, valeurs)
     resultat = candidature.remplir(dossier)
     assert "presentation" in resultat["anomalies"]["DC1"]
-    _, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    _, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert cases_cochees(xml) == []
 
 
@@ -287,7 +290,7 @@ def test_docx_produit_est_un_zip_et_un_xml_valides(dossier: Path):
     remplir_dc4(dossier)
     candidature.remplir(dossier)
     for nom in ("DC1.docx", "DC2.docx", "DC4.docx"):
-        chemin = dossier / "candidature" / nom
+        chemin = dossier / "reponse" / nom
         with zipfile.ZipFile(chemin) as archive:
             assert archive.testzip() is None
             ElementTree.fromstring(archive.read("word/document.xml"))
@@ -301,9 +304,9 @@ def test_caracteres_xml_echappes(dossier: Path):
     valeurs["DC1"]["champs"]["denomination"]["valeur"] = "A<R> & B"
     ecrire_valeurs(dossier, valeurs)
     candidature.remplir(dossier)
-    _, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    _, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert "A&lt;R&gt; &amp; B" in xml
     from docx import Document
 
-    textes = [p.text for p in Document(str(dossier / "candidature" / "DC1.docx")).paragraphs]
+    textes = [p.text for p in Document(str(dossier / "reponse" / "DC1.docx")).paragraphs]
     assert any(t.endswith("A<R> & B") for t in textes)

@@ -51,7 +51,12 @@ def test_archives_natives_et_references_completes(tmp_path, platform):
             assert "remporte/.codex-plugin/plugin.json" in names
             assert not any(name.startswith("remporte/agents/") for name in names)
             assert not any("/.claude-plugin/" in name for name in names)
-            for skill in ("init", "nouvel-ao", "repondre-ao", "lecture-dce", "redaction-section", "relecture-ao",
+            # La compétence nouvel-ao est retirée : douze compétences, et aucune
+            # trace d'elle dans l'archive.
+            assert not any("nouvel-ao" in name for name in names)
+            assert len([n for n in names
+                        if re.fullmatch(r"remporte/skills/[^/]+/SKILL\.md", n)]) == 12
+            for skill in ("init", "repondre-ao", "lecture-dce", "redaction-section", "relecture-ao",
                           "memoire-technique", "cadre-reponse", "fichier-impose", "chiffrage",
                           "visuels", "soutenance", "candidature"):
                 assert f"remporte/skills/{skill}/SKILL.md" in names

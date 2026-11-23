@@ -15,8 +15,8 @@ from pathlib import Path
 
 from remporte import __version__
 from remporte import (
-    cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
-    lots, travail,
+    cadre, candidature, charte, espace, export, formats, inventaire, lecture, livraison,
+    lots, recherche, travail,
 )
 from remporte.chemins import diagnostic_chemin_trop_long
 
@@ -128,6 +128,13 @@ def _construire_parser() -> argparse.ArgumentParser:
                              "pages, cadres Excel/Word à compléter")
     p.set_defaults(func=_cmd_formats)
 
+    p_liv = sous.add_parser("livraison", parents=[communes], help="pièces à remettre")
+    sous_liv = p_liv.add_subparsers(dest="sous_commande", metavar="action", required=True)
+    pl = sous_liv.add_parser("dossier", parents=[communes, avec_dossier],
+                             help="trouver ou créer le dossier de remise")
+    pl.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
+    pl.set_defaults(func=_cmd_livraison_dossier)
+
     p_cand = sous.add_parser("candidature", parents=[communes],
                              help="formulaires DC1/DC2/DC4 officiels")
     sous_cand = p_cand.add_subparsers(dest="sous_commande", metavar="action",
@@ -137,8 +144,11 @@ def _construire_parser() -> argparse.ArgumentParser:
                                    "remplacé s'il existe)")
     pc.set_defaults(func=_cmd_candidature_preparer)
     pc = sous_cand.add_parser("remplir", parents=[communes, avec_dossier],
-                              help="écrire candidature/DC1.docx, DC2.docx et "
-                                   "DC4.docx (si sous-traitance)")
+                              help="écrire DC1, DC2 et DC4 (si sous-traitance) "
+                                   "dans le dossier de remise")
+    pc.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
+    pc.add_argument("--remplacer", action="store_true",
+                    help="confirmer le remplacement des formulaires existants")
     pc.set_defaults(func=_cmd_candidature_remplir)
 
     p = sous.add_parser("cadre", parents=[communes, avec_dossier],
@@ -212,7 +222,8 @@ def _sortie_json(objet) -> None:
 
 
 def _signaler_erreur(args, message: str, code: int = 1) -> int:
-    if getattr(args, "json", False) and args.commande in {"init", "etat", "lots"}:
+    commandes_json = {"init", "etat", "lots", "livraison", "candidature", "exporter"}
+    if getattr(args, "json", False) and args.commande in commandes_json:
         _sortie_json({"ok": False, "erreur": message})
     else:
         print(f"Erreur : {message}", file=sys.stderr)
@@ -677,6 +688,18 @@ def _cmd_formats(args) -> int:
     return 0
 
 
+def _cmd_livraison_dossier(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    chemin = livraison.dossier_lot(dossier, args.lot)
+    if args.json:
+        _sortie_json({"ok": True, "chemin": str(chemin)})
+    else:
+        print(chemin)
+    return 0
+
+
 def _cmd_candidature_preparer(args) -> int:
     dossier, code = _dossier_ou_code(args)
     if dossier is None:
@@ -695,9 +718,9 @@ def _cmd_candidature_remplir(args) -> int:
     dossier, code = _dossier_ou_code(args)
     if dossier is None:
         return code
-    resultat = candidature.remplir(dossier)
+    resultat = candidature.remplir(dossier, args.lot, remplacer=args.remplacer)
     if args.json:
-        _sortie_json(resultat)
+        _sortie_json({"ok": True, **resultat})
         return 0
     for produit in resultat["produits"]:
         print(f"{produit['formulaire']} → {dossier / produit['chemin']}")
@@ -783,6 +806,7 @@ GUIDES_ANNEXES = {
     "soutenance": "support préparé sur les fichiers de l'entreprise",
     "excel": "répondre dans un fichier Excel ou Word imposé",
     "candidature": "DC1, DC2, DC4",
+    "style": "écrire comme l'entreprise parle de son métier",
     "modeles": "puissance de modèle et sous-agents par tâche",
     "cle-api": "ce que donne une clé API Remporte et comment la créer",
 }
@@ -866,21 +890,22 @@ def _cmd_exporter(args) -> int:
         return code
     formats = {f.strip().lower() for f in args.formats.split(",") if f.strip()}
     if "docx" in formats:
-        print("Erreur : le mémoire Word se produit avec votre agent, à partir de "
-              "sections/ (remporte guide export).", file=sys.stderr)
-        return 1
+        raise espace.Erreur("Le mémoire Word se produit avec votre agent, à partir de "
+                            "sections/ (remporte guide export).")
     inconnus = formats - {"html", "analyse", "feuille", "matrice"}
     if inconnus:
-        print(f"Erreur : formats inconnus : {', '.join(sorted(inconnus))} "
-              "(choix : html, analyse, feuille, matrice)", file=sys.stderr)
-        return 1
+        raise espace.Erreur(f"Formats inconnus : {', '.join(sorted(inconnus))} "
+                            "(choix : html, analyse, feuille, matrice)")
     if not formats:
         formats = {"html", "analyse", "feuille", "matrice"}
     resultat = export.exporter(dossier, formats)
+    message = resultat.pop("message", None)
     if args.json:
-        _sortie_json({cle: str(valeur) if valeur else None
-                      for cle, valeur in resultat.items()})
+        chemins = {cle: str(valeur) if valeur else None for cle, valeur in resultat.items()}
+        _sortie_json({"ok": True, **chemins, **({"message": message} if message else {})})
         return 0
+    if message:
+        print(message)
     for format_, chemin in resultat.items():
         print(f"{format_} : {chemin}" if chemin else f"{format_} : non produit")
     return 0

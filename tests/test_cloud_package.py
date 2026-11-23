@@ -20,11 +20,15 @@ def test_cloud_bundle_has_matching_cli_and_self_contained_skills(tmp_path, platf
     output = cloud.build_cloud(platform, wheel, tmp_path / "cloud.zip")
     with zipfile.ZipFile(output) as archive:
         assert archive.read("remporte/cli/" + wheel.name) == wheel.read_bytes()
-        assert len([p for p in archive.namelist() if p.endswith("SKILL.md")]) == 13
+        # La compétence nouvel-ao est retirée : douze compétences dans l'archive.
+        assert len([p for p in archive.namelist() if p.endswith("SKILL.md")]) == 12
+        assert not any("nouvel-ao" in name for name in archive.namelist())
         startup = archive.read("remporte/DEMARRAGE.md").decode()
         assert "attends mon accord" in startup
         assert "skills/remporte-init/SKILL.md" in startup
         assert "N'utilise aucun chemin de mon ordinateur personnel" in startup
+        # Le mode d'emploi ne doit plus renvoyer à la compétence retirée.
+        assert "nouvel-ao" not in startup
     with pytest.raises(FileExistsError):
         cloud.build_cloud(platform, wheel, output)
 
