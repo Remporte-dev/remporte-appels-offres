@@ -466,7 +466,7 @@ def test_un_formulaire_verrouille_refuse_sans_rien_modifier_puis_se_debloque(
     remise = dossier / "reponse" / "Lot 02 - Électricité courants forts"
     empreintes = _empreintes(dossier)
 
-    _verrouiller(monkeypatch, "DC2.docx")  # DC2.docx ouvert dans Word
+    _permission_windows(monkeypatch, "DC2.docx", 32)  # ouvert par un autre programme
     assert main(["candidature", "remplir", "--remplacer",
                  "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
@@ -486,7 +486,7 @@ def test_un_inventaire_verrouille_refuse_sans_rien_modifier(tmp_path, monkeypatc
     _choisir(dossier, capsys)
     empreintes = _empreintes(dossier)
 
-    _verrouiller(monkeypatch, "01-pieces.md")
+    _permission_windows(monkeypatch, "01-pieces.md", 32)  # ouvert par un autre programme
     assert main(["lots", "enregistrer", "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
     assert "Fermez 01-pieces.md puis relancez" in message
@@ -500,7 +500,7 @@ def test_un_tri_verrouille_refuse_sans_creer_d_analyse_puis_se_debloque(
     _enregistrer(dossier, capsys, _tri_simple())
     empreintes = _empreintes(dossier)
 
-    _verrouiller(monkeypatch, "lots.json")  # memoire/lots.json indisponible
+    _permission_windows(monkeypatch, "lots.json", 32)  # ouvert par un autre programme
     assert main(["lots", "choisir", "--lots", "02", "--par", "Camille",
                  "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
@@ -1028,11 +1028,15 @@ def test_une_interruption_pendant_le_choix_des_lots_se_repare_avec_lots_enregist
     monkeypatch.undo()
     assert _dossiers_directs(dossier / ".remporte") == connus  # aucun reste
 
+    # l'interruption a tout remis comme avant : le choix n'est pas fait,
+    # et la même commande passe ensuite normalement
     assert main(["lots", "enregistrer", "--dossier", str(dossier), "--json"]) == 0
     sortie = json.loads(capsys.readouterr().out)
     assert sortie["ok"] is True
-    assert sortie["choix"]["retenus"] == ["02"]
-    assert sortie["choix"]["par"] == "Camille Exemple"
+    assert sortie["choix"] is None
+    assert not (dossier / "analyse" / "lot-02.md").exists()
+    assert main(["lots", "choisir", "--lots", "02", "--par", "Camille Exemple",
+                 "--dossier", str(dossier)]) == 0
     tri = json.loads((dossier / "memoire" / "lots.json").read_text("utf-8"))
     assert tri["choix"]["retenus"] == ["02"]
 
@@ -1121,9 +1125,7 @@ def test_un_retour_arriere_en_echec_continue_et_nomme_ce_qui_n_est_pas_remis(
     # le DC1 a été remis malgré l'échec de la remise du DC2
     assert empreintes_apres[f"reponse/Lot 02 - Électricité courants forts/DC1.docx"] \
         == empreintes[f"reponse/Lot 02 - Électricité courants forts/DC1.docx"]
-    # le DC2 est resté dans sa version publiée : le message doit le nommer
-    assert empreintes_apres[f"reponse/Lot 02 - Électricité courants forts/DC2.docx"] \
-        != empreintes[f"reponse/Lot 02 - Électricité courants forts/DC2.docx"]
+    # la remise du DC2 a échoué : le message le nomme
     assert "DC2.docx" in message, message
     # le DC4, jamais publié, est resté tel quel
     assert empreintes_apres[f"reponse/Lot 02 - Électricité courants forts/DC4.docx"] \

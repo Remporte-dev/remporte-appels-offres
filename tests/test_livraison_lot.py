@@ -306,7 +306,7 @@ def test_livraison_json_en_erreur_rend_ok_false(dossier: Path, capsys):
 # ---------------------------------------------------------------------------
 
 MESSAGE_TRI_MODIFIE = ("Le tri des lots a changé depuis son enregistrement : "
-                       "faites-le valider à nouveau.")
+                       "faites-le valider à nouveau")
 
 
 def _commandes_qui_lisent_le_tri(dossier: Path) -> list[list[str]]:

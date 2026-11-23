@@ -424,14 +424,19 @@ def _date_limite(analyses: list[_AnalyseLot]) -> str:
             if ligne.startswith("|"):
                 cellules = _cellules(ligne)
                 libelle, valeur = cellules[0], _cellule_a(cellules, 1)
-            elif ligne.startswith("- "):
-                libelle, _, valeur = ligne[2:].partition(":")
             else:
-                continue
-            libelle = unicodedata.normalize("NFD", _nettoyer_inline(libelle).casefold())
+                ligne = re.sub(r"^[-*]\s+", "", ligne)
+                champs = re.match(r"((?:[^:(]|\([^()]*\))*):(.*)", ligne)
+                if champs is None:
+                    continue
+                libelle, valeur = champs.groups()
+            libelle = _nettoyer_inline(re.sub(r"\([^()]*\)", "", libelle)).casefold()
+            libelle = unicodedata.normalize("NFD", libelle)
             libelle = "".join(c for c in libelle if not unicodedata.combining(c))
-            if all(mot in libelle for mot in ("date", "limite", "remise")):
-                date = _nettoyer_inline(re.sub(r"\s*\[[^\]]*\]", "", valeur))
+            if "date" in libelle and "limite" in libelle and (
+                "remise" in libelle or "reception" in libelle
+            ):
+                date = _nettoyer_inline(re.sub(r"\s*\[[^\]]*\](?:\([^)]*\))?", "", valeur))
                 if date:
                     return date
     return ""

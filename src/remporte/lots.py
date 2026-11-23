@@ -31,7 +31,7 @@ RUBRIQUES = (
 _TRI = Path("memoire/lots.json")
 _TRI_ENREGISTRE = Path(".remporte/lots.json")
 _TRI_MODIFIE = ("Le tri des lots a changé depuis son enregistrement : "
-                "faites-le valider à nouveau.")
+                "faites-le valider à nouveau (remporte lots enregistrer).")
 _AVIS = {"repondre": "Répondre", "a_discuter": "À discuter",
          "ne_pas_repondre": "Ne pas répondre"}
 _TYPES = ("RC", "CCAP", "CCTP", "DPGF", "BPU", "plan", "autre")
@@ -60,8 +60,8 @@ def _texte_fichier(chemin: Path) -> str:
         return texte
     except FileNotFoundError:
         raise Erreur(f"Le fichier {chemin.name} est absent.") from None
-    except PermissionError:
-        raise Erreur(f"Fermez {chemin.name} puis relancez.") from None
+    except PermissionError as erreur:
+        raise Erreur(ecritures.message_droits(chemin, erreur)) from None
     except UnicodeError:
         message = (f"Enregistrez {chemin.name} en UTF-8." if chemin.suffix == ".json"
                    else f"Le fichier {chemin.name} est illisible.")
@@ -253,8 +253,8 @@ def lire(dossier: Path) -> dict | None:
         chemin.lstat()
     except FileNotFoundError:
         return None
-    except PermissionError:
-        raise Erreur(f"Fermez {chemin.name} puis relancez.") from None
+    except PermissionError as erreur:
+        raise Erreur(ecritures.message_droits(chemin, erreur)) from None
     except OSError:
         raise Erreur(f"Le fichier {chemin.name} est illisible.") from None
     tri = _lire_objet(chemin, _TRI_MODIFIE)
@@ -349,8 +349,8 @@ def choisir(dossier: Path, demande: str, par: str) -> dict:
         "retenus": retenus, "par": par.strip(),
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
-    fichiers[dossier / _TRI] = _json(tri)
     fichiers[dossier / _TRI_ENREGISTRE] = _json(_preuve(tri))
+    fichiers[dossier / _TRI] = _json(tri)
     ecritures.publier(dossier, fichiers, exclusifs=nouveaux)
     return {"choix": tri["choix"]}
 
@@ -458,7 +458,7 @@ def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
     else:
         ids = ", ".join(choix["retenus"])
         lot, accord = ("Lot", "choisi") if len(choix["retenus"]) == 1 else ("Lots", "choisis")
-        date = datetime.date.fromisoformat(choix["date"][:10])
+        date = datetime.datetime.fromisoformat(choix["date"]).astimezone()
         texte.append(f"{lot} {_texte_html(ids)} {accord} par {_texte_html(choix['par'])} "
                      f"le {date:%d/%m/%Y}.")
         for identifiant in choix["retenus"]:
