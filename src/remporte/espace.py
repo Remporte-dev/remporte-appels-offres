@@ -15,6 +15,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from remporte import formats, inventaire, recherche
+from remporte.chemins import masquer_espace
 from remporte.lecture import convertir, decompresser_avec_etat, lister_fichiers
 
 ETAPES = ["pieces", "analyse", "go-no-go", "plan", "redaction", "relecture",
@@ -66,6 +67,7 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
         )
     for sous_dossier in ("dce", "sections", "export", ".remporte/texte"):
         (dossier / sous_dossier).mkdir(parents=True, exist_ok=True)
+    masquer_espace(dossier / ".remporte")
 
     racine_dce = dossier / "dce"
     precedentes = _pieces_importees(dossier)
@@ -349,9 +351,9 @@ def sections_plan(dossier: Path) -> list[dict]:
 
 
 def trouver_dossier(depart: Path) -> Path | None:
-    """Remonte depuis `depart` jusqu'au premier dossier contenant .remporte/."""
+    """Remonte depuis `depart` jusqu'au premier dossier contenant .remporte/etat.json."""
     courant = Path(depart).resolve()
     for candidat in (courant, *courant.parents):
-        if (candidat / ".remporte").is_dir():
+        if (candidat / ".remporte" / "etat.json").is_file():
             return candidat
     return None
