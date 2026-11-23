@@ -8,7 +8,7 @@ import shutil
 import stat
 import sys
 import time
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from contextlib import suppress
 from pathlib import Path
 from typing import BinaryIO
@@ -28,16 +28,18 @@ def message_droits(chemin: Path, erreur: PermissionError) -> str:
 
 
 def publier(dossier: Path, fichiers: dict[Path, bytes], *,
-            exclusifs: Collection[Path] = (), conflit: str | None = None) -> None:
+            exclusifs: Collection[Path] = (),
+            conflit: Callable[[Path], str] | None = None) -> None:
     """Prépare les fichiers et sauvegarde les originaux avant tout remplacement."""
     if not fichiers:
         return
     debut = time.time_ns()
     attente = None
     verrou = None
+    garder_attente = False
     sauvegardes: dict[Path, Path] = {}
     prepares: dict[Path, tuple[Path, tuple[int, int]]] = {}
-    reserves: dict[Path, tuple[int, int]] = {}
+    crees: dict[Path, tuple[int, int]] = {}
     dossiers_crees: list[Path] = []
     problemes: list[str] = []
     cible = next(iter(fichiers))
@@ -60,38 +62,61 @@ def publier(dossier: Path, fichiers: dict[Path, bytes], *,
                 mode = cible.lstat().st_mode
             except FileNotFoundError:
                 mode = None
-            if mode is not None:
-                if cible in exclusifs:
-                    raise FileExistsError
-                if not stat.S_ISREG(mode):
-                    raise OSError
-                sauvegardes[cible] = attente / f"avant-{rang}"
-                shutil.copy2(cible, sauvegardes[cible])
+            if mode is None:
+                continue
+            if cible in exclusifs:
+                raise FileExistsError
+            if not stat.S_ISREG(mode):
+                raise OSError
+            sauvegardes[cible] = attente / f"avant-{rang}"
+            shutil.copy2(cible, sauvegardes[cible])
             prepare = attente / f"apres-{rang}"
             with prepare.open("xb") as fichier:
                 fichier.write(contenu)
-            if mode is not None:
-                prepare.chmod(stat.S_IMODE(mode))
+            prepare.chmod(stat.S_IMODE(mode))
             prepares[cible] = prepare, _empreinte(prepare.lstat())
 
         try:
-            for cible, (prepare, _) in prepares.items():
+            for cible, contenu in fichiers.items():
                 _creer_parents(cible.parent, dossier, dossiers_crees)
-                if cible not in sauvegardes:
-                    # Réserve le nom sans écraser un fichier arrivé entre-temps.
+                if cible in prepares:
+                    prepares[cible][0].replace(cible)
+                else:
                     with cible.open("xb") as fichier:
-                        reserves[cible] = _empreinte(os.fstat(fichier.fileno()))
-                prepare.replace(cible)
+                        try:
+                            fichier.write(contenu)
+                            fichier.flush()
+                            os.fsync(fichier.fileno())
+                        finally:
+                            crees[cible] = _empreinte(os.fstat(fichier.fileno()))
         except BaseException as erreur:
-            for chemin, (prepare, empreinte) in reversed(prepares.items()):
+            for chemin in reversed(fichiers):
+                sauvegarde = sauvegardes.get(chemin)
                 try:
-                    # Le fichier préparé disparaît dès que son remplacement aboutit.
-                    if not prepare.exists():
-                        _retablir(chemin, empreinte, sauvegardes.get(chemin), problemes)
-                    elif chemin in reserves:
-                        _retablir(chemin, reserves[chemin], None, problemes)
+                    if chemin in crees:
+                        _retablir(chemin, crees[chemin], None, problemes)
+                        continue
+                    if chemin not in prepares:
+                        continue
+                    prepare, empreinte = prepares[chemin]
+                    if prepare.exists() or _retablir(chemin, empreinte, sauvegarde, problemes):
+                        continue
                 except OSError:
-                    problemes.append(f"Impossible de rétablir {chemin.name}.")
+                    if sauvegarde is None:
+                        problemes.append(f"Impossible de rétablir {chemin.name}.")
+                        continue
+                if sauvegarde is not None:
+                    try:
+                        recuperee = _garder_sauvegarde(interne, chemin, sauvegarde)
+                    except OSError:
+                        # Si le déplacement échoue aussi, conserver la sauvegarde sur place.
+                        garder_attente = True
+                        with suppress(OSError):
+                            verrou.write(b"r")
+                            verrou.flush()
+                        recuperee = sauvegarde
+                    problemes.append(f"Impossible de rétablir {chemin.name} : "
+                                     f"la version d'avant est gardée dans {recuperee}.")
             for parent in reversed(dossiers_crees):
                 try:
                     parent.rmdir()
@@ -105,7 +130,7 @@ def publier(dossier: Path, fichiers: dict[Path, bytes], *,
         if isinstance(erreur, PermissionError):
             message = message_droits(cible, erreur)
         elif isinstance(erreur, FileExistsError) and conflit and cible in exclusifs:
-            message = conflit.format(nom=cible.name)
+            message = conflit(cible)
         else:
             message = diagnostic_chemin_trop_long(erreur) or (
                 f"Impossible d'écrire le fichier {cible.name} dans le dossier de réponse."
@@ -115,7 +140,7 @@ def publier(dossier: Path, fichiers: dict[Path, bytes], *,
         if verrou is not None:
             with suppress(OSError):
                 verrou.close()
-        if attente is not None:
+        if attente is not None and not garder_attente:
             _nettoyer(attente)
 
 
@@ -124,17 +149,27 @@ def _empreinte(infos: os.stat_result) -> tuple[int, int]:
 
 
 def _retablir(chemin: Path, empreinte: tuple[int, int], sauvegarde: Path | None,
-              problemes: list[str]) -> None:
+              problemes: list[str]) -> bool:
     try:
         infos = chemin.lstat()
     except FileNotFoundError:
         infos = None
     if infos is None or not stat.S_ISREG(infos.st_mode) or _empreinte(infos) != empreinte:
         problemes.append(f"{chemin.name} a été modifié pendant l'opération : il est conservé.")
-    elif sauvegarde is not None:
+        return False
+    if sauvegarde is not None:
         sauvegarde.replace(chemin)
     else:
         chemin.unlink()
+    return True
+
+
+def _garder_sauvegarde(interne: Path, chemin: Path, sauvegarde: Path) -> Path:
+    recuperation = interne / "recuperation"
+    if recuperation.resolve() != recuperation:
+        raise OSError
+    recuperation.mkdir(exist_ok=True)
+    return sauvegarde.replace(recuperation / f"{time.time_ns()}-{chemin.name}")
 
 
 def _nettoyer(attente: Path) -> None:
@@ -152,8 +187,12 @@ def _retirer_restes(interne: Path, debut: int) -> None:
             chemin_verrou = reste / _VERROU_ATTENTE
             if chemin_verrou.is_symlink():
                 continue
-            with chemin_verrou.open("ab") as verrou:
-                _verrouiller(verrou)
+            with chemin_verrou.open("a+b") as verrou:
+                if not _verrouiller(verrou):
+                    continue
+                verrou.seek(0)
+                if verrou.read(1) == b"r":
+                    continue
                 # Réserve la suppression avant de fermer le fichier.
                 verrou.write(b"\0")
         except OSError:
@@ -161,16 +200,22 @@ def _retirer_restes(interne: Path, debut: int) -> None:
         _nettoyer(reste)
 
 
-def _verrouiller(verrou: BinaryIO) -> None:
-    if os.name == "nt":
-        import msvcrt
+def _verrouiller(verrou: BinaryIO) -> bool:
+    try:
+        if os.name == "nt":
+            import msvcrt
 
-        verrou.seek(0)
-        msvcrt.locking(verrou.fileno(), msvcrt.LK_NBLCK, 1)
-    else:
-        import fcntl
+            verrou.seek(0)
+            msvcrt.locking(verrou.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
 
-        fcntl.flock(verrou.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(verrou.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as erreur:
+        if erreur.errno not in (errno.ENOTSUP, errno.ENOLCK, errno.EOPNOTSUPP):
+            raise
+        return False
+    return True
 
 
 def _creer_parents(parent: Path, dossier: Path, crees: list[Path]) -> None:

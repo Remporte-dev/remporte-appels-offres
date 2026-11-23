@@ -45,6 +45,8 @@ _GEOMETRIE_CASE_DC4 = 'coordsize="147955,147955"'
 _SEPARATEUR = "  "  # double espace entre le libellé et la valeur ajoutée
 _CONFIRMER = ("{nom} existe déjà dans le dossier de remise : "
               "il a peut-être été retouché. Confirmez le remplacement.")
+_VALEURS_EXISTANTES = ("{chemin} existe déjà. Complétez-le tel quel ; il n'est jamais "
+                      "remplacé par l'outil.")
 
 
 def cartes() -> dict:
@@ -63,11 +65,6 @@ def preparer(dossier: Path) -> Path:
             "Lancez `remporte init <DCE>` d'abord."
         )
     cible = dossier / "candidature" / "valeurs.json"
-    if cible.exists():
-        raise espace.Erreur(
-            f"{cible} existe déjà. Complétez-le tel quel ; il n'est jamais "
-            "remplacé par l'outil."
-        )
     valeurs = {
         formulaire: {
             "fichier": info["fichier"],
@@ -85,10 +82,12 @@ def preparer(dossier: Path) -> Path:
         }
         for formulaire, info in cartes()["formulaires"].items()
     }
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    cible.write_text(
-        json.dumps(valeurs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    contenu = (json.dumps(valeurs, ensure_ascii=False, indent=2, allow_nan=False)
+               + "\n").encode("utf-8")
+    racine = dossier.resolve()
+    destination = racine / cible.relative_to(dossier)
+    ecritures.publier(racine, {destination: contenu}, exclusifs=(destination,),
+                      conflit=lambda _: _VALEURS_EXISTANTES.format(chemin=cible))
     return cible
 
 
@@ -98,7 +97,7 @@ def remplir(dossier: Path, lot: str | None = None, *, remplacer: bool = False) -
     à la main et les anomalies (ancre ou case introuvable)."""
     dossier = Path(dossier).resolve()
     try:
-        remise = livraison.chemin_dossier_lot(dossier, lot)
+        remise, lot_remise = livraison.destination_lot(dossier, lot)
     except OSError as erreur:
         message = diagnostic_chemin_trop_long(erreur) or "Le dossier de remise est inaccessible."
         raise espace.Erreur(message) from erreur
@@ -130,6 +129,7 @@ def remplir(dossier: Path, lot: str | None = None, *, remplacer: bool = False) -
         renseigne = valeurs_formulaire.get("champs", {}) if isinstance(valeurs_formulaire, dict) else None
         if not isinstance(renseigne, dict) or any(not isinstance(c, dict) for c in renseigne.values()):
             raise espace.Erreur(f"Les valeurs de candidature du {formulaire} sont illisibles.")
+        _valider_valeurs(formulaire, info, renseigne)
         if formulaire == "DC4" and renseigne.get("sous_traitance", {}).get(
             "valeur"
         ) is not True:
@@ -144,6 +144,14 @@ def remplir(dossier: Path, lot: str | None = None, *, remplacer: bool = False) -
         if not remplacer and (cible.exists() or cible.is_symlink()):
             raise espace.Erreur(_CONFIRMER.format(nom=cible.name))
         xml = _remplir_formulaire(formulaire, info, renseigne, resultat)
+        if formulaire == "DC1" and lot_remise is not None:
+            valeur = renseigne.get("lot_numero", {}).get("valeur")
+            numero = "" if valeur is None else str(valeur)
+            if numero.strip() and lot_remise not in numero:
+                resultat["anomalies"].setdefault("DC1", {})["Lot visé"] = (
+                    f"Le DC1 désigne « {numero} » alors qu'il est rangé "
+                    f"dans le dossier du lot {lot_remise}."
+                )
         documents[cible] = _docx(info["fichier"], xml)
         resultat["produits"].append({
             "formulaire": formulaire,
@@ -151,13 +159,27 @@ def remplir(dossier: Path, lot: str | None = None, *, remplacer: bool = False) -
         })
 
     ecritures.publier(dossier, documents, exclusifs=() if remplacer else documents,
-                      conflit=_CONFIRMER)
+                      conflit=lambda chemin: _CONFIRMER.format(nom=chemin.name))
     return resultat
 
 
 # ---------------------------------------------------------------------------
 # Remplissage d'un formulaire
 # ---------------------------------------------------------------------------
+
+def _valider_valeurs(formulaire: str, info: dict, renseigne: dict) -> None:
+    libelles = {champ["var"]: champ["label"] for champ in info["champs"]}
+    for var, champ in renseigne.items():
+        valeur = champ.get("valeur")
+        if valeur is None or isinstance(valeur, (str, int, float, bool)):
+            continue
+        libelle = libelles.get(var, "Champ de candidature")
+        if formulaire == "DC1" and var == "lot_numero":
+            libelle = "N° et intitulé du lot visé"
+        if formulaire == "DC4" and var == "sous_traitance":
+            libelle = "Déclarez-vous un sous-traitant ?"
+        raise espace.Erreur(f"{formulaire}, {libelle} : valeur attendue : un texte.")
+
 
 def _remplir_formulaire(formulaire: str, info: dict, renseigne: dict, resultat: dict) -> str:
     non_remplis: list[str] = []

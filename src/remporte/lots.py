@@ -7,6 +7,7 @@ import hashlib
 import html
 import importlib.resources
 import json
+import math
 import re
 import unicodedata
 import webbrowser
@@ -37,7 +38,7 @@ _AVIS = {"repondre": "Répondre", "a_discuter": "À discuter",
 _TYPES = ("RC", "CCAP", "CCTP", "DPGF", "BPU", "plan", "autre")
 _LIGNE_INVENTAIRE = re.compile(r"^(\| [^|]+ \| )[^|]*( \| `(dce/[^`]+)` \|)", re.M)
 _FRAGMENT_INTERNE = re.compile(
-    r"\b[\w.-]+\.(?:md|json)\b|(?<!\w)(?:dce|analyse|\.remporte)/"
+    r"\b[\w.-]+\.(?:md|json)\b|(?<!\w)(?:dce|analyse|\.remporte)[/\\]"
     r"|\bremporte\s+(?:init|etat|pieces|lire|chercher|formats|cadre|lots|livraison|"
     r"candidature|exporter|base|espace|fiche|html|guide)\b", re.IGNORECASE,
 )
@@ -49,7 +50,8 @@ def _texte(valeur) -> bool:
 
 
 def _json(donnees) -> bytes:
-    return (json.dumps(donnees, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    return (json.dumps(donnees, ensure_ascii=False, indent=2, allow_nan=False)
+            + "\n").encode("utf-8")
 
 
 def _texte_fichier(chemin: Path) -> str:
@@ -81,9 +83,24 @@ def _objet_sans_doublon(paires: list[tuple[str, object]]) -> dict:
     return objet
 
 
+def _lire_json(chemin: Path, *, sans_doublon: bool = False):
+    def nombre_invalide(_: str) -> None:
+        raise Erreur(f"Enregistrez {chemin.name} avec des nombres valides.")
+
+    def lire_nombre(texte: str) -> float:
+        valeur = float(texte)
+        if not math.isfinite(valeur):
+            nombre_invalide(texte)
+        return valeur
+
+    return json.loads(_texte_fichier(chemin), parse_constant=nombre_invalide,
+                      parse_float=lire_nombre,
+                      object_pairs_hook=_objet_sans_doublon if sans_doublon else None)
+
+
 def _lire_objet(chemin: Path, erreur: str | None = None) -> dict:
     try:
-        donnees = json.loads(_texte_fichier(chemin), object_pairs_hook=_objet_sans_doublon)
+        donnees = _lire_json(chemin, sans_doublon=True)
     except ValueError:
         donnees = None
     if not isinstance(donnees, dict):
@@ -213,8 +230,8 @@ def _valider_tri(dossier: Path, tri: dict) -> dict:
             raise Erreur(f"Type de pièce inconnu pour {chemin} (valeur attendue : un texte).")
         if type_piece not in _TYPES:
             raise Erreur(f"Type de pièce inconnu pour {chemin} : {type_piece}.")
-        if chemin in normalises and normalises[chemin] != type_piece:
-            raise Erreur(f"Deux types différents sont indiqués pour {chemin}.")
+        if chemin in normalises:
+            raise Erreur(f"Le type de la pièce {chemin} est indiqué deux fois.")
         normalises[chemin] = type_piece
     manquants = lisibles - normalises.keys()
     if manquants:
@@ -224,7 +241,7 @@ def _valider_tri(dossier: Path, tri: dict) -> dict:
 
 
 def _preuve(tri: dict) -> dict:
-    contenu = json.dumps(tri, sort_keys=True).encode("ascii")
+    contenu = json.dumps(tri, sort_keys=True, allow_nan=False).encode("ascii")
     return {"empreinte": hashlib.sha256(contenu).hexdigest(), "choix": tri["choix"]}
 
 
@@ -355,14 +372,14 @@ def choisir(dossier: Path, demande: str, par: str) -> dict:
     return {"choix": tri["choix"]}
 
 
-def _titre(texte: str) -> str:
+def normaliser_titre(texte: str) -> str:
     return " ".join(texte.strip().rstrip(":").lower().replace("’", "'").split())
 
 
 def _problemes_rubriques(texte: str) -> list[str]:
-    attendues = [_titre(titre) for titre in RUBRIQUES]
-    titres = [_titre(titre) for titre in re.findall(r"^##[ \t]+(.+)$", texte, re.M)]
-    manquantes = [titre for titre in RUBRIQUES if _titre(titre) not in titres]
+    attendues = [normaliser_titre(titre) for titre in RUBRIQUES]
+    titres = [normaliser_titre(titre) for titre in re.findall(r"^##[ \t]+(.+)$", texte, re.M)]
+    manquantes = [titre for titre, attendu in zip(RUBRIQUES, attendues) if attendu not in titres]
     problemes = []
     if manquantes:
         problemes.append(f"Rubriques manquantes : {', '.join(manquantes)}.")
@@ -420,7 +437,7 @@ def _analyse(dossier: Path, identifiant: str) -> tuple[object, list[dict], list[
         problemes = _problemes_rubriques(texte)
     chemin = racine / f"lot-{identifiant}.json"
     try:
-        contenu = json.loads(_texte_fichier(chemin))
+        contenu = _lire_json(chemin)
     except Erreur as erreur:
         return _ILLISIBLE, [], [*problemes, str(erreur)]
     except ValueError:
@@ -481,9 +498,15 @@ def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
         page: charte.page_depuis_markdown("\n\n".join(texte)).encode("utf-8"),
         recueil: _json({"lots": analyses}),
     })
+    resultat = {"html": str(page), "analyses": str(recueil), "problemes": problemes}
     if ouvrir:
-        webbrowser.open(page.as_uri())
-    return {"html": str(page), "analyses": str(recueil), "problemes": problemes}
+        try:
+            resultat["ouverte"] = bool(webbrowser.open(page.as_uri()))
+        except Exception:
+            resultat["ouverte"] = False
+        if not resultat["ouverte"]:
+            resultat["message"] = f"Page à ouvrir : {page}"
+    return resultat
 
 
 def etat(dossier: Path) -> dict:

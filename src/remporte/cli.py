@@ -217,7 +217,7 @@ def _construire_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 def _sortie_json(objet) -> None:
-    print(json.dumps(objet, ensure_ascii=False, indent=2))
+    print(json.dumps(objet, ensure_ascii=False, indent=2, allow_nan=False))
 
 
 def _signaler_erreur(args, message: str, code: int = 1) -> int:
@@ -393,6 +393,8 @@ def _cmd_lots_rapport(args) -> int:
         _sortie_json({"ok": True, **resultat})
     else:
         print(f"Rapport des lots : {resultat['html']}")
+        if "message" in resultat:
+            print(resultat["message"])
         for identifiant, problemes in resultat["problemes"].items():
             print(f"  Lot {identifiant}, analyse en cours")
             for probleme in problemes:

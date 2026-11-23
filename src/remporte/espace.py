@@ -85,7 +85,7 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
         "retirees": retirees,
     }
     (dossier / ".remporte" / "etat.json").write_text(
-        json.dumps(donnees, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(donnees, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8"
     )
     _ecrire_inventaire(dossier, pieces, source)
     return donnees
@@ -249,20 +249,22 @@ def _gabarit(nom: str) -> str | None:
 def _copier_gabarits(dossier: Path, forcer: bool) -> None:
     """Copie les gabarits du dossier de réponse à sa racine.
 
-    Avec `forcer`, un fichier déjà rempli (plus aucun marqueur) n'est jamais
-    touché ; un fichier entamé est réinitialisé.
+    Avec `forcer`, les fichiers modifiés depuis leur création sont conservés.
     """
+    from remporte import ecritures
+
+    dossier = dossier.resolve()
     racine = importlib.resources.files("remporte") / "gabarits"
+    fichiers = {}
     for ressource in racine.iterdir():
         if ressource.name.startswith(".") or ressource.name == "analyse-lot.md":
             continue
         cible = dossier / ressource.name
-        if cible.exists():
-            if not forcer:
-                continue
-            if MARQUEUR not in cible.read_text(encoding="utf-8", errors="replace"):
-                continue
-        cible.write_bytes(ressource.read_bytes())
+        modele = ressource.read_bytes()
+        if cible.exists() and (not forcer or cible.read_bytes() != modele):
+            continue
+        fichiers[cible] = modele
+    ecritures.publier(dossier, fichiers)
 
 
 def etat(dossier: Path) -> dict:

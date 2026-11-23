@@ -15,6 +15,7 @@ import io
 import json
 import re
 import unicodedata
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -317,8 +318,9 @@ def _lignes_tableau(texte: str) -> list[list[str]]:
 
 def _contenu_section(texte: str, rubrique: str) -> str:
     """Contenu de la rubrique, indépendamment de la casse et du deux-points final."""
+    rubrique = lots.normaliser_titre(rubrique)
     for titre, contenu in sections_h2(texte):
-        if titre.rstrip(":").strip().replace("’", "'").casefold() == rubrique:
+        if lots.normaliser_titre(titre) == rubrique:
             return contenu
     return ""
 
@@ -372,7 +374,8 @@ def _sans_notes(texte: str) -> str:
     return _RE_MARQUEUR.sub("", "\n".join(lignes))
 
 
-def _analyse_markdown(dossier: Path, analyses: list[_AnalyseLot]) -> str:
+def _analyse_markdown(dossier: Path, analyses: list[_AnalyseLot],
+                      titre_page: str | None = None) -> str:
     parties = []
     for analyse in analyses:
         rubriques = sections_h2(_sans_notes(analyse.texte))
@@ -389,7 +392,11 @@ def _analyse_markdown(dossier: Path, analyses: list[_AnalyseLot]) -> str:
         parties.append("\n\n".join(blocs))
     if not parties:
         parties.append(_LOTS_A_CHOISIR)
-    parties.append(_sans_notes(_lire_markdown(dossier / "03-go-no-go.md")))
+    decision = _sans_notes(_lire_markdown(dossier / "03-go-no-go.md"))
+    if titre_page:
+        parties.insert(0, f"# {titre_page}")
+        decision = re.sub(r"^#[ \t]+", "## ", decision, count=1, flags=re.M)
+    parties.append(decision)
     return "\n\n".join(parties)
 
 
@@ -397,11 +404,11 @@ def _exporter_analyse(dossier: Path, analyses: list[_AnalyseLot],
                       bilan_matrice: str | None = None) -> bytes:
     """analyse.html : l'analyse du DCE et le go/no-go, tels que rédigés, puis
     le renvoi vers la matrice de conformité quand elle existe."""
-    morceaux = [_analyse_markdown(dossier, analyses)]
+    morceaux = [_analyse_markdown(dossier, analyses, titre_page="Analyse du dossier")]
     renvoi = _renvoi_matrice(dossier, bilan_matrice)
     if renvoi:
         morceaux.append(renvoi)
-    page = charte.page_depuis_markdown("\n\n".join(morceaux), "Analyse du DCE")
+    page = charte.page_depuis_markdown("\n\n".join(morceaux))
     return page.encode("utf-8")
 
 
@@ -416,6 +423,17 @@ def _renvoi_matrice(dossier: Path, bilan: str | None) -> str:
     return "## Matrice de conformité\n\n" + texte
 
 
+def _hors_parentheses(texte: str) -> Iterator[tuple[int, str]]:
+    profondeur = 0
+    for position, caractere in enumerate(texte):
+        if caractere == "(":
+            profondeur += 1
+        elif caractere == ")" and profondeur:
+            profondeur -= 1
+        elif profondeur == 0:
+            yield position, caractere
+
+
 def _date_limite(analyses: list[_AnalyseLot]) -> str:
     for analyse in analyses:
         identite = _contenu_section(analyse.texte, "identité")
@@ -426,11 +444,11 @@ def _date_limite(analyses: list[_AnalyseLot]) -> str:
                 libelle, valeur = cellules[0], _cellule_a(cellules, 1)
             else:
                 ligne = re.sub(r"^[-*]\s+", "", ligne)
-                champs = re.match(r"((?:[^:(]|\([^()]*\))*):(.*)", ligne)
-                if champs is None:
+                separateur = next((i for i, c in _hors_parentheses(ligne) if c == ":"), None)
+                if separateur is None:
                     continue
-                libelle, valeur = champs.groups()
-            libelle = _nettoyer_inline(re.sub(r"\([^()]*\)", "", libelle)).casefold()
+                libelle, valeur = ligne[:separateur], ligne[separateur + 1:]
+            libelle = _nettoyer_inline("".join(c for _, c in _hors_parentheses(libelle))).casefold()
             libelle = unicodedata.normalize("NFD", libelle)
             libelle = "".join(c for c in libelle if not unicodedata.combining(c))
             if "date" in libelle and "limite" in libelle and (

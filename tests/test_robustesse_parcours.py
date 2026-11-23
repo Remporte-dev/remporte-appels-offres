@@ -40,6 +40,8 @@ RUBRIQUES_LOT = ["En bref", "Identité", "Ce que l'acheteur attend vraiment",
                  "Incohérences entre pièces", "Pièces illisibles ou absentes",
                  "Documents de référence et versions", "Avis"]
 
+MARQUEUR = "<!-- à remplir -->"
+
 
 # ---------------------------------------------------------------------------
 # Aides : DCE de test, dossier de réponse, tri, candidature
@@ -877,6 +879,10 @@ def test_le_dossier_d_attente_vit_dans_remporte_heurite_ses_droits_et_disparait(
     dossier = _initialiser(source, tmp_path, capsys)
     _enregistrer(dossier, capsys, _tri_simple())
     interne = dossier / ".remporte"
+    # un premier rapport crée ses fichiers ; le second les remplace et passe
+    # donc par le dossier d'attente
+    assert main(["lots", "rapport", "--dossier", str(dossier), "--json"]) == 0
+    capsys.readouterr()
     connus = _dossiers_directs(interne)
     memoire_avant = _dossiers_directs(dossier / "memoire")
 
@@ -910,6 +916,8 @@ def test_le_dossier_d_attente_change_de_nom_a_chaque_commande(
     source = _dce_simple(tmp_path / "DCE")
     dossier = _initialiser(source, tmp_path, capsys)
     _enregistrer(dossier, capsys, _tri_simple())
+    assert main(["lots", "rapport", "--dossier", str(dossier), "--json"]) == 0
+    capsys.readouterr()
     connus = _dossiers_directs(dossier / ".remporte")
 
     def noms_observes(photos):
@@ -1027,8 +1035,9 @@ def test_une_interruption_pendant_le_choix_des_lots_se_repare_avec_lots_enregist
     def remplacer(self, cible, *args, **kwargs):
         chemin = Path(cible)
         ordre.append(chemin.relative_to(dossier).as_posix())
-        # publications de `lots choisir` : deux analyses, le relevé, le tri
-        if len(ordre) == 4:
+        # remplacements de `lots choisir` : le relevé, puis le tri (les analyses
+        # sont des créations, sans remplacement)
+        if len(ordre) == 2:
             raise KeyboardInterrupt
         return original(self, cible, *args, **kwargs)
 
@@ -1039,15 +1048,15 @@ def test_une_interruption_pendant_le_choix_des_lots_se_repare_avec_lots_enregist
     monkeypatch.undo()
     assert _dossiers_directs(dossier / ".remporte") == connus  # aucun reste
 
-    # l'ordre relevé avant tri : l'interruption est tombée sur le tri (4ᵉ
-    # publication visée) ; le 5ᵉ appel observé est la remise du relevé par le
+    # l'ordre relevé avant tri : l'interruption est tombée sur le tri (2ᵉ
+    # remplacement) ; le 3ᵉ appel observé est la remise du relevé par le
     # retour arrière. Un ordre inversé (tri publié sans son relevé) laisserait
     # un tri qui porte un choix que le relevé n'a jamais validé : `lots
     # enregistrer` refuserait alors de réparer.
     premiere_fois: dict[str, int] = {}
     for rang, relatif in enumerate(ordre):
         premiere_fois.setdefault(relatif, rang)
-    assert ordre[3] == "memoire/lots.json", ordre
+    assert ordre[1] == "memoire/lots.json", ordre
     assert (premiere_fois[".remporte/lots.json"]
             < premiere_fois["memoire/lots.json"]), ordre
 
@@ -1109,7 +1118,8 @@ def test_un_fichier_enregistre_pendant_l_operation_n_est_pas_ecrase(
     assert matrice.read_bytes() == enregistrement  # la version récente est gardée
     # la feuille, jamais publiée au second tour, est revenue à la version d'avant
     assert feuille.read_bytes() == empreintes_avant["feuille"]
-    assert _dossiers_directs(dossier / ".remporte") == connus  # aucun reste
+    # aucun reste, hormis la version d'avant mise de côté
+    assert _dossiers_directs(dossier / ".remporte") - {"recuperation"} == connus
 
 
 # ---------------------------------------------------------------------------

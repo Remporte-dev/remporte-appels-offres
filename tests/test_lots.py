@@ -478,6 +478,7 @@ def test_enregistrer_tolere_les_chemins_mal_normalises(tmp_path, capsys):
     tri = _tri_valide()
     tri["lots"][0]["pieces"] = ["dce/LOT  02/CCTP lot 02.pdf", nfd]
     tri["lots"][1]["pieces"] = ["dce/LOT 05/DPGF lot 05.xlsx", nfd]
+    del tri["types_pieces"]["dce/LOT 02/CCTP lot 02.pdf"]
     tri["types_pieces"]["dce/LOT  02/CCTP lot 02.pdf"] = "CCTP"
     _ecrire_tri(dossier, tri)
 
