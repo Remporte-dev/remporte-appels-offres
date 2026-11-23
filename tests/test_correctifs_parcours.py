@@ -1,6 +1,6 @@
-"""Tests des correctifs du parcours par lot, après relecture adverse.
+"""Tests de robustesse du parcours par lot.
 
-Chaque test reproduit le scénario du rapport de relecture qu'il doit empêcher
+Chaque test reproduit le scénario qu'il doit empêcher
 de revenir : le guide et le code restent d'accord (exemples JSON du guide
 joués tels quels), les écritures survivent aux volumes sans liens physiques et
 aux fichiers verrouillés, les droits restent ceux du système, les messages
@@ -185,7 +185,7 @@ def _mode(chemin: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# B1 — le tri écrit comme le guide le demande passe tels quels
+# le tri écrit comme le guide le demande passe tels quels
 # ---------------------------------------------------------------------------
 
 def test_le_tri_ecrit_comme_le_guide_le_demande_est_accepte(tmp_path, capsys):
@@ -213,7 +213,7 @@ def test_le_tri_ecrit_comme_le_guide_le_demande_est_accepte(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# B2 — la question à l'acheteur écrite comme le guide le demande est conforme
+# la question à l'acheteur écrite comme le guide le demande est conforme
 # ---------------------------------------------------------------------------
 
 def test_la_question_ecrite_comme_le_guide_le_demande_passe_dans_le_rapport(
@@ -243,7 +243,7 @@ def test_la_question_ecrite_comme_le_guide_le_demande_passe_dans_le_rapport(
 
 
 # ---------------------------------------------------------------------------
-# B3 — aucun lien physique requis : volume qui refuse os.link
+# aucun lien physique requis : volume qui refuse os.link
 # ---------------------------------------------------------------------------
 
 def _sans_liens_physiques(monkeypatch) -> None:
@@ -294,7 +294,7 @@ def test_les_formulaires_se_crent_sans_liens_physiques_et_le_second_appel_refuse
 
 
 # ---------------------------------------------------------------------------
-# I1 — un fichier verrouillé refuse la commande sans rien modifier
+# un fichier verrouillé refuse la commande sans rien modifier
 # ---------------------------------------------------------------------------
 
 def _verrouiller(monkeypatch, nom: str):
@@ -374,7 +374,7 @@ def test_un_tri_verrouille_refuse_sans_creer_d_analyse_puis_se_debloque(
 
 
 # ---------------------------------------------------------------------------
-# I8 — marques d'ordre d'octets et encodages
+# marques d'ordre d'octets et encodages
 # ---------------------------------------------------------------------------
 
 def test_le_tri_avec_marque_d_ordre_d_octets_utf8_est_accepte(tmp_path, capsys):
@@ -419,7 +419,7 @@ def test_le_json_d_analyse_avec_marque_d_ordre_d_octets_est_accepte(tmp_path, ca
 
 
 # ---------------------------------------------------------------------------
-# M1 — options obligatoires refusées par la commande, en français
+# options obligatoires refusées par la commande, en français
 # ---------------------------------------------------------------------------
 
 CAS_OPTIONS_MANQUANTES = [
@@ -455,7 +455,7 @@ def test_les_options_obligatoires_manquantes_sont_refusees_en_francais(
 
 
 # ---------------------------------------------------------------------------
-# M3 — deux identifiants qui ne diffèrent que par la casse ou les accents
+# deux identifiants qui ne diffèrent que par la casse ou les accents
 # ---------------------------------------------------------------------------
 
 def test_deux_lots_dont_les_ids_ne_differrent_que_par_la_casse_sont_un_doublon(
@@ -498,7 +498,7 @@ def test_deux_lots_dont_les_ids_ne_differrent_que_par_les_accents_sont_un_doublo
 
 
 # ---------------------------------------------------------------------------
-# M6 — aucun message ne montre une valeur non textuelle
+# aucun message ne montre une valeur non textuelle
 # ---------------------------------------------------------------------------
 
 def test_une_piece_de_mauvais_type_est_refusee_sans_valeur_python(tmp_path, capsys):
@@ -533,7 +533,7 @@ def test_un_type_de_piece_de_mauvais_type_est_refuse_sans_valeur_python(
 
 
 # ---------------------------------------------------------------------------
-# M7 — page du rapport : date en clair, accord au singulier
+# page du rapport : date en clair, accord au singulier
 # ---------------------------------------------------------------------------
 
 def test_la_page_du_rapport_donne_la_date_en_clair_et_l_accord_au_singulier(
@@ -553,7 +553,7 @@ def test_la_page_du_rapport_donne_la_date_en_clair_et_l_accord_au_singulier(
 
 
 # ---------------------------------------------------------------------------
-# I6 — droits des fichiers écrits (POSIX)
+# droits des fichiers écrits (POSIX)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(os.name == "nt", reason="droits POSIX")
@@ -607,7 +607,7 @@ def test_les_fichiers_ecrits_ont_les_droits_usuels(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# I7 — intitulé de lot long : coupé dans le nom du dossier, diagnostic gardé
+# intitulé de lot long : coupé dans le nom du dossier, diagnostic gardé
 # ---------------------------------------------------------------------------
 
 INTITULE_LONG = ("Réfection complète des réseaux électriques courants forts "
