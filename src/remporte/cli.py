@@ -16,7 +16,7 @@ from pathlib import Path
 from remporte import __version__
 from remporte import (
     cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
-    travail,
+    lots, travail,
 )
 from remporte.chemins import diagnostic_chemin_trop_long
 
@@ -35,13 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except espace.Erreur as erreur:
-        print(f"Erreur : {erreur}", file=sys.stderr)
-        return 1
+        return _signaler_erreur(args, str(erreur))
     except Exception as erreur:  # noqa: BLE001 — jamais de trace Python brute
         diagnostic = diagnostic_chemin_trop_long(erreur)
         message = diagnostic or f"{type(erreur).__name__}: {erreur}"
-        print(f"Erreur : {message}", file=sys.stderr)
-        return 1
+        return _signaler_erreur(args, message)
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +86,22 @@ def _construire_parser() -> argparse.ArgumentParser:
     p = sous.add_parser("etat", parents=[communes, avec_dossier],
                         help="état d'avancement des étapes")
     p.set_defaults(func=_cmd_etat)
+
+    p_lots = sous.add_parser("lots", help="répartir les pièces et choisir les lots du marché")
+    sous_lots = p_lots.add_subparsers(dest="sous_commande", metavar="action", required=True)
+    pl = sous_lots.add_parser("enregistrer", parents=[communes, avec_dossier],
+                              help="valider le tri des pièces et compléter l'inventaire")
+    pl.set_defaults(func=_cmd_lots_enregistrer)
+    pl = sous_lots.add_parser("choisir", parents=[communes, avec_dossier],
+                              help="enregistrer les lots retenus et préparer leur analyse")
+    pl.add_argument("--lots", required=True, metavar="LISTE",
+                    help="lots retenus, séparés par des virgules")
+    pl.add_argument("--par", required=True, metavar="NOM", help="nom de la personne qui choisit")
+    pl.set_defaults(func=_cmd_lots_choisir)
+    pl = sous_lots.add_parser("rapport", parents=[communes, avec_dossier],
+                              help="présenter les lots et leurs questions à l'acheteur")
+    pl.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport dans le navigateur")
+    pl.set_defaults(func=_cmd_lots_rapport)
 
     p = sous.add_parser("pieces", parents=[communes, avec_dossier],
                         help="inventaire des pièces du DCE")
@@ -197,6 +211,14 @@ def _sortie_json(objet) -> None:
     print(json.dumps(objet, ensure_ascii=False, indent=2))
 
 
+def _signaler_erreur(args, message: str, code: int = 1) -> int:
+    if getattr(args, "json", False) and args.commande in {"init", "etat", "lots"}:
+        _sortie_json({"ok": False, "erreur": message})
+    else:
+        print(f"Erreur : {message}", file=sys.stderr)
+    return code
+
+
 def _dossier_reponse(args) -> Path | None:
     """Dossier de réponse explicite ou trouvé en remontant depuis le cwd."""
     if getattr(args, "dossier", None):
@@ -211,12 +233,12 @@ def _dossier_ou_code(args) -> tuple[Path | None, int]:
     dossier = _dossier_reponse(args)
     if dossier is None:
         cible = getattr(args, "dossier", None) or str(Path.cwd())
-        print(
-            f"Erreur : pas de dossier de réponse (.remporte/etat.json) dans {cible} "
+        code = _signaler_erreur(
+            args, f"pas de dossier de réponse (.remporte/etat.json) dans {cible} "
             "ni au-dessus. Lancez `remporte init <DCE>` d'abord.",
-            file=sys.stderr,
+            code=2,
         )
-        return None, 2
+        return None, code
     return dossier, 0
 
 
@@ -269,8 +291,7 @@ def _cmd_init(args) -> int:
         except (OSError, ValueError) as erreur:
             if diagnostic_chemin_trop_long(erreur):
                 raise
-        print(f"Erreur : source introuvable : {source}", file=sys.stderr)
-        return 1
+        raise espace.Erreur(f"source introuvable : {source}")
     racine = travail.trouver_espace()
     nom = source.stem or source.name
     if args.dossier:
@@ -279,10 +300,11 @@ def _cmd_init(args) -> int:
         dossier = racine / travail.DCES / nom
     else:
         dossier = Path.cwd() / f"{nom}-reponse"
-    print(f"Initialisation depuis {source}…")
+    if not args.json:
+        print(f"Initialisation depuis {source}…")
     donnees = espace.initialiser(source, dossier, forcer=args.forcer)
     if args.json:
-        _sortie_json(donnees)
+        _sortie_json({"ok": True, **donnees})
         return 0
     pieces = donnees["pieces"]
     lues = sum(1 for p in pieces if p["statut"] == "ok")
@@ -308,10 +330,13 @@ def _cmd_etat(args) -> int:
         return code
     etat = espace.etat(dossier)
     if args.json:
-        _sortie_json(etat)
+        _sortie_json({"ok": True, **etat})
         return 0
     print(f"Dossier : {etat['dossier']}")
     for nom in espace.ETAPES:
+        if nom == "analyse":
+            print(f"  {etat['lots']['message']}")
+            continue
         info = etat["etapes"][nom]
         detail = "" if info["marqueurs"] is None else f" ({info['marqueurs']} restants)"
         print(f"  {nom:<10} [{info['etat']}]{detail}")
@@ -320,6 +345,48 @@ def _cmd_etat(args) -> int:
         print(f"  {etat['commande']}")
     else:
         print("Toutes les étapes sont faites.")
+    return 0
+
+
+def _cmd_lots_enregistrer(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.enregistrer(dossier)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Tri enregistré pour les lots {', '.join(resultat['lots'])}.")
+        if "message" in resultat:
+            print(resultat["message"])
+    return 0
+
+
+def _cmd_lots_choisir(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.choisir(dossier, args.lots, args.par)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Lots retenus : {', '.join(resultat['choix']['retenus'])}.")
+    return 0
+
+
+def _cmd_lots_rapport(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.rapport(dossier, ouvrir=args.ouvrir)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Rapport des lots : {resultat['html']}")
+        for identifiant, problemes in resultat["problemes"].items():
+            print(f"  Lot {identifiant}, analyse en cours")
+            for probleme in problemes:
+                print(f"    - {probleme}")
     return 0
 
 

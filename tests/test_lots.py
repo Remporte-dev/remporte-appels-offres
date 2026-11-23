@@ -51,24 +51,25 @@ def _fabriquer_dce_alloti(source: Path) -> Path:
     une pièce scannée (statut « vide » donc non lisible pour le tri)."""
     (source / "LOT 02").mkdir(parents=True)
     (source / "LOT 05").mkdir(parents=True)
+    # Une page par pièce, assez de texte pour que l'inventaire la dise lisible.
     ecrire_pdf(source / "RC.pdf", [
-        "Reglement de la consultation du marche",
-        "Le marche est alloti en deux lots :",
-        "Lot 02 : electricite courants forts.",
+        "Reglement de la consultation du marche\n"
+        "Le marche est alloti en deux lots :\n"
+        "Lot 02 : electricite courants forts.\n"
         "Lot 05 : courants faibles et resolution.",
     ])
     ecrire_pdf(source / "CCAP.pdf", [
-        "Cahier des clauses administratives particulieres",
+        "Cahier des clauses administratives particulieres\n"
         "Les penalites de retard sont fixees au RC.",
     ])
     ecrire_pdf(source / "LOT 02/CCTP lot 02.pdf", [
-        "Cahier des clauses techniques particulieres du lot 02",
+        "Cahier des clauses techniques particulieres du lot 02\n"
         "Tableau electrique de division, protection differentielle, "
         "colonnes de mesure.",
     ])
     fabriquer_xlsx(source / "LOT 05/DPGF lot 05.xlsx")
     ecrire_pdf(source / "Plan L2 étage.pdf", [
-        "Plan d execution de l etage 2 du batiment A.",
+        "Plan d execution de l etage 2 du batiment A, niveaux et cotes.",
     ])
     ecrire_pdf(source / "notice scannee.pdf", ["", ""])  # PDF scanné → « vide »
     return source
