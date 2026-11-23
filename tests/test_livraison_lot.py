@@ -508,7 +508,11 @@ def test_exporter_ne_lit_plus_02_analyse(dossier: Path, capsys):
     page_feuille = (dossier / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
     assert "31 décembre 2031" not in page_analyse
     assert "31 décembre 2031" not in page_feuille
-    assert "12 juin 2026 à 17 h 00" in page_analyse + page_feuille
+    # la date limite doit être vérifiée dans la feuille de route seule : la
+    # page d'analyse recopie toutes les rubriques de l'analyse de lot, elle la
+    # contiendrait donc de toute façon, et une concaténation des deux pages
+    # masquerait une feuille de route qui l'a perdue
+    assert "12 juin 2026 à 17 h 00" in page_feuille
 
 
 def test_exporter_sans_choix_le_dit_et_sort_proprement(dossier: Path, capsys):
