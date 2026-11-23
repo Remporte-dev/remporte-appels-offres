@@ -230,3 +230,30 @@ def test_initialiser_extrait_les_noms_accentues_d_un_zip(tmp_path: Path):
     chemins = {p["chemin"] for p in donnees["pieces"]}
     assert chemins == {"DCE Tvx généraux/RC.txt"}
     assert "DCE Tvx généraux/RC.txt" in (dossier / "01-pieces.md").read_text(encoding="utf-8")
+
+
+def test_initialiser_forcer_ne_retire_rien_d_un_dossier_sans_provenance(tmp_path: Path):
+    """Un dossier dont l'état ne distingue pas les pièces importées des pièces
+    ajoutées à la main garde toutes ses pièces à la réinitialisation."""
+    source_1 = tmp_path / "DCE-ancien"
+    source_1.mkdir()
+    fabriquer_docx(source_1 / "1-RC.docx")
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_1, dossier)
+    manuelle = dossier / "dce" / "note-manuelle.txt"
+    manuelle.write_text("Précision ajoutée à la main pour l'offre.", encoding="utf-8")
+    chemin_etat = dossier / ".remporte" / "etat.json"
+    etat = json.loads(chemin_etat.read_text(encoding="utf-8"))
+    del etat["importees"]
+    etat["pieces"].append({"chemin": "note-manuelle.txt"})
+    chemin_etat.write_text(json.dumps(etat), encoding="utf-8")
+
+    source_2 = tmp_path / "DCE-nouveau"
+    source_2.mkdir()
+    fabriquer_docx(source_2 / "2-CCTP.docx")
+    donnees = espace.initialiser(source_2, dossier, forcer=True)
+
+    assert manuelle.exists()
+    assert (dossier / "dce" / "1-RC.docx").exists()
+    assert donnees["retirees"] == []
+    assert sorted(donnees["importees"]) == ["2-CCTP.docx"]

@@ -102,14 +102,11 @@ def _pieces_importees(dossier: Path) -> set[str]:
     if not isinstance(donnees, dict):
         return set()
     importees = donnees.get("importees")
-    if isinstance(importees, list):
-        return {chemin for chemin in importees if isinstance(chemin, str)}
-    # Les anciens inventaires ne distinguaient pas la provenance des pièces.
-    pieces = donnees.get("pieces")
-    if not isinstance(pieces, list):
+    if not isinstance(importees, list):
+        # Un dossier plus ancien ne distingue pas les pièces importées des pièces
+        # ajoutées à la main : on n'en retire aucune.
         return set()
-    return {p["chemin"] for p in pieces
-            if isinstance(p, dict) and isinstance(p.get("chemin"), str)}
+    return {chemin for chemin in importees if isinstance(chemin, str)}
 
 
 def _importer_dce(source: Path, racine: Path, precedentes: set[str]) -> tuple[set[str], list[str]]:
