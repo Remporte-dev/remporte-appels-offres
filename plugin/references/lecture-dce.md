@@ -23,7 +23,7 @@ Pour une pièce longue, lis le sommaire avec `remporte lire <pièce>`, puis les 
    ```
 
    Le lot d'une pièce se lit dans son contenu (en-tête, objet, cartouche, RC), jamais dans son seul nom de fichier.
-3. Écris `memoire/lots.json` : chaque lot avec son `id` tel que le RC le numérote, son `titre`, ses `pieces` (chemins `dce/…`), son `avis` (une phrase : ce lot relève-t-il du métier de l'entreprise, et pourquoi) et sa `source` ; puis `pieces_communes` et `date_remise`. Chaque pièce de `01-pieces.md` figure une seule fois. Un marché non alloti a un seul lot, d'identifiant `unique`.
+3. Écris `memoire/lots.json` exactement dans la forme que donne `remporte guide analyse` (rubrique « Index et tri ») : chaque lot avec son `id` tel que le RC le numérote, son `intitule`, ses `pieces` (chemins `dce/…`), ses `parties_communes` et sa `recommandation` (`avis` : `repondre`, `a_discuter` ou `ne_pas_repondre` au regard du métier de l'entreprise ; `raison` en une phrase) ; puis `pieces_communes`, `pieces_illisibles`, `types_pieces`, et `choix` à `null`. Chaque pièce lisible de `01-pieces.md` est rangée au moins une fois. Un marché non alloti a un seul lot, d'identifiant `unique`.
 4. Lance `remporte lots enregistrer` et corrige le tri jusqu'à ce qu'il soit accepté.
 
 ## Tâche 2 : l'analyse d'un lot retenu
@@ -44,7 +44,7 @@ Remplis `analyse/lot-<id>.md`, rubrique par rubrique, à la place des marqueurs 
 - Chaque incohérence est numérotée `I-1`, `I-2`… ; elle cite les deux prescriptions et l'hypothèse retenue en attendant la réponse de l'acheteur.
 - Dans « Avis », dis ce que la fiche entreprise ne couvre pas ou couvre mal : certification absente, référence manquante, effectif juste.
 
-Remplis `questions_acheteur` dans `analyse/lot-<id>.json` : une question par écart qui change le prix ou la recevabilité de l'offre, avec `contexte` (l'écart en une ligne), `question` (phrase complète adressée à l'acheteur, prête à envoyer, terminée par « ? »), `sources` et `ecart` (son numéro `I-`). Une seule liste par lot ; pas de question en double.
+Remplis `questions_acheteur` dans `analyse/lot-<id>.json` : une question par écart qui change le prix ou la recevabilité de l'offre, avec `id` (le numéro `I-` de l'incohérence), `contexte` (l'écart en une ligne), `question` (phrase complète adressée à l'acheteur, prête à envoyer, terminée par « ? »), `sources` (les passages du DCE) et `impact_prix` (ce que la réponse change au prix ou à la recevabilité). Forme exacte : `remporte guide analyse`. Ces textes partent chez l'acheteur : aucun nom de fichier ni de commande. Une seule liste par lot ; pas de question en double.
 
 Lance `remporte lots rapport` et corrige ce qu'il signale pour ton lot.
 
