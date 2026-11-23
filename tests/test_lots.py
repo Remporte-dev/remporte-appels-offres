@@ -14,6 +14,7 @@ des fichiers (relus avant/après). Aucun mock du code testé ; seul
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import unicodedata
 import webbrowser
@@ -144,14 +145,15 @@ def _ecrire_tri(dossier: Path, donnees: dict | None = None,
     return chemin
 
 
-def _contenus(dossier: Path) -> dict:
-    """Contenu des fichiers que les refus ne doivent pas modifier."""
-    contenus = {}
-    for relatif in ("memoire/lots.json", "01-pieces.md"):
-        chemin = dossier / relatif
-        contenus[relatif] = (chemin.read_text(encoding="utf-8")
-                             if chemin.exists() else None)
-    return contenus
+def _contenus(dossier: Path) -> dict[str, str]:
+    """Empreinte de chaque fichier du dossier : un refus ne doit rien modifier,
+    ni rien ajouter (relevé du choix, analyses de lot, temporaire oublié)."""
+    empreintes: dict[str, str] = {}
+    for chemin in sorted(dossier.rglob("*")):
+        if chemin.is_file():
+            empreintes[chemin.relative_to(dossier).as_posix()] = \
+                hashlib.sha256(chemin.read_bytes()).hexdigest()
+    return empreintes
 
 
 def _dossier_tri_enregistre(tmp_path: Path, capsys) -> Path:
@@ -497,6 +499,24 @@ def test_enregistrer_conserve_le_choix_quand_les_lots_retenus_restent(tmp_path, 
     assert _lecture_du_tri(dossier)["choix"] == choix_avant
 
 
+def test_enregistrer_conserve_le_choix_enregistre_meme_si_l_agent_le_reecrit(
+        tmp_path, capsys):
+    """Le choix des lots vient du relevé de l'enregistrement : réécrire le tri
+    avec un autre choix ne change rien, ni à la sortie, ni au fichier."""
+    dossier = _dossier_choix_fait(tmp_path, capsys)
+    vrai_choix = _lecture_du_tri(dossier)["choix"]
+    tri = _tri_valide()           # les lots 02 et 05 existent toujours
+    tri["choix"] = {"retenus": ["05"], "par": "Agent",
+                    "date": "2026-11-23T10:00:00+00:00"}  # falsifié par l'agent
+    _ecrire_tri(dossier, tri)
+
+    assert main(["lots", "enregistrer", "--dossier", str(dossier),
+                 "--json"]) == 0
+    sortie = json.loads(capsys.readouterr().out)
+    assert sortie["choix"] == vrai_choix
+    assert _lecture_du_tri(dossier)["choix"] == vrai_choix
+
+
 def test_enregistrer_remise_a_zero_du_choix_si_un_lot_retenu_disparait(tmp_path, capsys):
     dossier = _dossier_choix_fait(tmp_path, capsys)  # 02 et 05 retenus
     choix_avant = _lecture_du_tri(dossier)["choix"]
@@ -627,6 +647,11 @@ def test_choisir_exige_un_tri_enregistre(tmp_path, capsys):
 def test_choisir_garde_les_analyses_du_lot_retire(tmp_path, capsys):
     dossier = _dossier_choix_fait(tmp_path, capsys)  # 02 et 05 retenus
     assert (dossier / "analyse" / "lot-05.md").exists()
+    marque = "Analyse du lot 05 déjà rédigée avant son retrait (fictif)."
+    (dossier / "analyse" / "lot-05.md").write_text(marque, encoding="utf-8")
+    (dossier / "analyse" / "lot-05.json").write_text(
+        json.dumps({"questions_acheteur": _question()}, ensure_ascii=False),
+        encoding="utf-8")
 
     tri = _tri_valide()
     tri["lots"] = [tri["lots"][0]]                   # nouveau tri sans le 05
@@ -638,10 +663,14 @@ def test_choisir_garde_les_analyses_du_lot_retire(tmp_path, capsys):
                  "--dossier", str(dossier)]) == 0
     capsys.readouterr()
 
-    # les fichiers du lot retiré restent sur le disque
+    # les fichiers du lot retiré restent sur le disque, tels que rédigés :
+    # le choix suivant ne les remet pas au gabarit
     contenu_05 = (dossier / "analyse" / "lot-05.md").read_text("utf-8")
-    assert "Rédigé" in contenu_05 or MARQUEUR in contenu_05
-    assert (dossier / "analyse" / "lot-05.json").exists()
+    assert marque in contenu_05
+    assert MARQUEUR not in contenu_05
+    questions = json.loads(
+        (dossier / "analyse" / "lot-05.json").read_text("utf-8"))
+    assert questions["questions_acheteur"][0]["id"] == "I-1"
 
 
 def test_choisir_marche_non_alloti_avec_le_lot_unique(tmp_path, capsys):
@@ -775,6 +804,7 @@ CAS_PROBLEMES = [
 def test_rapport_liste_les_problemes_sans_bloquer(tmp_path, capsys, nom, preparer):
     dossier = _dossier_choix_fait(tmp_path, capsys)
     preparer(dossier)
+    _analyse_faite(dossier, "05")  # lot 05 : analyse conforme, donc prête
     capsys.readouterr()
 
     assert main(["lots", "rapport", "--dossier", str(dossier), "--json"]) == 0
@@ -783,7 +813,12 @@ def test_rapport_liste_les_problemes_sans_bloquer(tmp_path, capsys, nom, prepare
     # le problème du lot 02 est listé, sans bloquer la page
     assert "02" in json.dumps(sortie.get("problemes")), sortie.get("problemes")
     page = (dossier / "memoire" / "rapport-lots.html").read_text(encoding="utf-8")
-    assert "analyse en cours" in page
+    # l'état annoncé est celui du lot nommé : le lot à problème reste
+    # « en cours », le lot conforme est bien « prête »
+    assert "Lot 02 – analyse en cours" in page, page
+    assert "Lot 02 – analyse prête" not in page
+    assert "Lot 05 – analyse prête" in page
+    assert "Lot 05 – analyse en cours" not in page
 
 
 def test_rapport_recueil_sans_le_json_illisible(tmp_path, capsys):
@@ -859,13 +894,18 @@ def test_etat_apres_choix_libelle_par_lot(tmp_path, capsys):
     assert main(["etat", "--dossier", str(dossier)]) == 0
     sortie = capsys.readouterr().out.replace("\u2019", "'")
     assert "Analyse : lots retenus 02, 05" in sortie
-    assert "lot 02 prête (3 questions à l'acheteur)" in sortie
-    assert "lot 05 en cours" in sortie
+    message_attendu = ("Analyse : lots retenus 02, 05 — "
+                       "lot 02 prête (3 questions à l'acheteur), lot 05 en cours.")
+    assert message_attendu in sortie.replace("\u2019", "'")
     assert "analyse_a_lancer" not in sortie
 
     assert main(["etat", "--dossier", str(dossier), "--json"]) == 0
     donnees = json.loads(capsys.readouterr().out)
     assert "lots" in donnees
+    # le même état, structuré : pas un résumé vide sous cette clé
+    etat_lots = donnees["lots"]
+    assert isinstance(etat_lots, dict) and etat_lots
+    assert etat_lots["message"].replace("\u2019", "'") == message_attendu
 
 
 def test_etat_dossier_ancien_annonce_la_reprise_par_lot(tmp_path, capsys):

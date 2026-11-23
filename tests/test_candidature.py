@@ -20,6 +20,7 @@ import pytest
 from conftest import fabriquer_docx
 
 from remporte import espace, candidature
+from remporte.cli import main
 
 
 @pytest.fixture()
@@ -159,6 +160,26 @@ def test_remplir_sans_valeurs_echoue(tmp_path: Path):
     espace.initialiser(source, dossier)
     with pytest.raises(espace.Erreur):
         candidature.remplir(dossier)
+
+
+def test_un_ancien_dc4_est_signale_et_conserve_sans_bloquer(dossier: Path, capsys):
+    """Un DC4 laissé par un essai précédent, alors qu'aucune sous-traitance
+    n'est déclarée, n'empêche plus d'écrire DC1 et DC2 : il est signalé dans
+    la sortie et jamais supprimé — le dossier part chez l'acheteur."""
+    remplir_dc1(dossier)  # DC1 et DC2 remplis, pas de sous-traitance
+    remise = dossier / "reponse"
+    remise.mkdir(exist_ok=True)
+    fabriquer_docx(remise / "DC4.docx")  # un ancien DC4 déjà présent
+
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr()
+    message = sortie.out + sortie.err
+    assert "DC4.docx" in message, message
+    assert "sous-traitance" in message, message
+    # DC1 et DC2 sont écrits à côté, et l'ancien DC4 n'a pas été touché
+    assert (remise / "DC1.docx").is_file()
+    assert (remise / "DC2.docx").is_file()
+    assert (remise / "DC4.docx").is_file()
 
 
 def test_remplir_dc1_ecrit_aux_bons_endroits(dossier: Path):

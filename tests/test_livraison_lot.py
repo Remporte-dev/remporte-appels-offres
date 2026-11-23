@@ -1,10 +1,12 @@
-"""Tests du lot B — dossier de remise par lot : `remporte livraison dossier`
-(§ 4.4), `remporte candidature remplir` dans le dossier de remise (§ 4.5),
-`remporte exporter` lu depuis les analyses par lot (§ 4.8) et le guide de
-style (§ 4.9).
+"""Tests du dossier de remise par lot : `remporte livraison dossier`,
+`remporte candidature remplir` dans le dossier de remise, `remporte exporter`
+lu depuis les analyses par lot, et le guide de style.
 
-Les dossiers allotis sont préparés en écrivant `memoire/lots.json` au format
-de la spec § 2 avec `choix` rempli (le choix des lots est testé ailleurs).
+Le choix des lots n'est jamais écrit à la main dans les tests : le tri est
+enregistré par `lots enregistrer`, puis les lots retenus sont choisis par
+`lots choisir`. Une commande qui refuse un tri modifié à la main doit donc
+être vue par les mêmes tests que le chemin nominal.
+
 Chaque refus vérifie un code de sortie non nul et des fichiers inchangés.
 """
 
@@ -23,7 +25,7 @@ from remporte.cli import main
 
 
 # ---------------------------------------------------------------------------
-# Aides : dossier de réponse, memoire/lots.json, analyses par lot
+# Aides : dossier de réponse, tri enregistré, choix, analyses par lot
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
@@ -37,20 +39,13 @@ def dossier(tmp_path: Path) -> Path:
     return dossier
 
 
-def ecrire_lots(dossier: Path, contenu: dict) -> Path:
-    chemin = dossier / "memoire" / "lots.json"
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    chemin.write_text(
-        json.dumps(contenu, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    return chemin
-
-
-def lots_alloti(retenus: list[str], lots: list[dict] | None = None,
-                choix: dict | None = None) -> dict:
-    """Tri alloti valide (spec § 2), deux lots, RC répartie dans le lot 02."""
-    if lots is None:
-        lots = [
+def tri_alloti() -> dict:
+    """Tri alloti valide, deux lots, RC répartie dans le lot 02. Le choix des
+    lots reste vide : seule la commande de choix l'écrit."""
+    return {
+        "schema_version": 1,
+        "allotissement": "lots",
+        "lots": [
             {"id": "02", "intitule": "Électricité courants forts",
              "pieces": ["dce/1-RC.docx"], "parties_communes": [],
              "recommandation": {"avis": "repondre",
@@ -59,23 +54,16 @@ def lots_alloti(retenus: list[str], lots: list[dict] | None = None,
              "pieces": [], "parties_communes": [],
              "recommandation": {"avis": "a_discuter",
                                 "raison": "Sous-traitance probable (fictif)."}},
-        ]
-    if choix is None:
-        choix = {"retenus": retenus, "par": "Camille Exemple",
-                 "date": "2026-11-23T09:00:00+00:00"}
-    return {
-        "schema_version": 1,
-        "allotissement": "lots",
-        "lots": lots,
+        ],
         "pieces_communes": [],
         "pieces_illisibles": [],
         "types_pieces": {"dce/1-RC.docx": "RC"},
-        "choix": choix,
+        "choix": None,
     }
 
 
-def lots_unique() -> dict:
-    """Tri d'un marché non alloti : un seul lot, id « unique », choix fait."""
+def tri_unique() -> dict:
+    """Tri d'un marché non alloti : un seul lot, id « unique », choix vide."""
     return {
         "schema_version": 1,
         "allotissement": "unique",
@@ -88,21 +76,30 @@ def lots_unique() -> dict:
         "pieces_communes": [],
         "pieces_illisibles": [],
         "types_pieces": {"dce/1-RC.docx": "RC"},
-        "choix": {"retenus": ["unique"], "par": "Camille Exemple",
-                  "date": "2026-11-23T09:00:00+00:00"},
+        "choix": None,
     }
+
+
+def enregistrer_tri(dossier: Path, tri: dict) -> None:
+    """Écrit le tri (sans choix) et le fait valider par `lots enregistrer`."""
+    chemin = dossier / "memoire" / "lots.json"
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    chemin.write_text(
+        json.dumps(tri, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
+
+
+def choisir_lots(dossier: Path, ids: str, par: str = "Camille Exemple") -> None:
+    """Fait choisir les lots retenus par la commande — jamais à la main."""
+    assert main(["lots", "choisir", "--lots", ids, "--par", par,
+                 "--dossier", str(dossier)]) == 0
 
 
 def lot_intitule(id_: str, intitule: str) -> dict:
     return {"id": id_, "intitule": intitule, "pieces": ["dce/1-RC.docx"],
             "parties_communes": [],
             "recommandation": {"avis": "repondre", "raison": "Lot fictif d'essai."}}
-
-
-RUBRIQUES_LOT = ["En bref", "Identité", "Ce que l'acheteur attend vraiment",
-                 "Critères et pondérations", "Pièces à remettre et formes imposées",
-                 "Incohérences entre pièces", "Pièces illisibles ou absentes",
-                 "Documents de référence et versions", "Avis"]
 
 
 def ecrire_analyse_lot(dossier: Path, id_: str, *, date_limite: str | None,
@@ -125,8 +122,13 @@ def ecrire_analyse_lot(dossier: Path, id_: str, *, date_limite: str | None,
         "Documents de référence et versions": "RC version du 2 mars (fictif).",
         "Avis": "Répondre (fictif).",
     }
+    rubriques = ["En bref", "Identité", "Ce que l'acheteur attend vraiment",
+                 "Critères et pondérations",
+                 "Pièces à remettre et formes imposées",
+                 "Incohérences entre pièces", "Pièces illisibles ou absentes",
+                 "Documents de référence et versions", "Avis"]
     lignes = [f"# Analyse du lot {id_}", ""]
-    for rubrique in RUBRIQUES_LOT:
+    for rubrique in rubriques:
         lignes += [f"## {rubrique}", "", corps[rubrique], ""]
     chemin = dossier / "analyse" / f"lot-{id_}.md"
     chemin.parent.mkdir(parents=True, exist_ok=True)
@@ -138,6 +140,16 @@ def empreinte(chemin: Path) -> str:
     return hashlib.sha256(chemin.read_bytes()).hexdigest()
 
 
+def empreintes_dossier(racine: Path) -> dict[str, str]:
+    """Empreinte de chaque fichier du dossier : une commande refusée ne doit
+    rien modifier, ni rien ajouter."""
+    empreintes: dict[str, str] = {}
+    for chemin in sorted(racine.rglob("*")):
+        if chemin.is_file():
+            empreintes[chemin.relative_to(racine).as_posix()] = empreinte(chemin)
+    return empreintes
+
+
 def texte_docx(chemin: Path) -> str:
     with zipfile.ZipFile(chemin) as archive:
         xml = archive.read("word/document.xml").decode("utf-8")
@@ -145,11 +157,12 @@ def texte_docx(chemin: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# § 4.4 — livraison dossier
+# livraison dossier
 # ---------------------------------------------------------------------------
 
 def test_livraison_marche_non_alloti_rend_reponse(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_unique())
+    enregistrer_tri(dossier, tri_unique())
+    choisir_lots(dossier, "unique")
     assert main(["livraison", "dossier", "--dossier", str(dossier)]) == 0
     sortie = capsys.readouterr().out
     cible = dossier / "reponse"
@@ -164,7 +177,8 @@ def test_livraison_tri_absent_rend_reponse(dossier: Path, capsys):
 
 
 def test_livraison_alloti_un_seul_lot_retenu_sans_option(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
     assert main(["livraison", "dossier", "--dossier", str(dossier)]) == 0
     sortie = capsys.readouterr().out
     cible = dossier / "reponse" / "Lot 02 - Électricité courants forts"
@@ -176,17 +190,20 @@ def test_livraison_alloti_un_seul_lot_retenu_sans_option(dossier: Path, capsys):
 
 def test_livraison_remplace_les_caracteres_interdits_de_l_intitule(
         dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(
-        ["03"], lots=[lot_intitule("03", "Réseau : fibre/sécurité ?")]))
+    tri = tri_alloti()
+    tri["lots"] = [lot_intitule("03", "Réseau : fibre/sécurité ?")]
+    enregistrer_tri(dossier, tri)
+    choisir_lots(dossier, "03")
     assert main(["livraison", "dossier", "--dossier", str(dossier)]) == 0
     assert (dossier / "reponse" / "Lot 03 - Réseau - fibre-sécurité -").is_dir()
 
 
 def test_livraison_retire_point_et_espace_de_fin_de_l_intitule(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(
-        ["06", "07"],
-        lots=[lot_intitule("06", "Voirie et réseaux divers."),
-              lot_intitule("07", "Éclairage public ")]))
+    tri = tri_alloti()
+    tri["lots"] = [lot_intitule("06", "Voirie et réseaux divers."),
+                   lot_intitule("07", "Éclairage public ")]
+    enregistrer_tri(dossier, tri)
+    choisir_lots(dossier, "06,07")
     assert main(["livraison", "dossier", "--lot", "06",
                  "--dossier", str(dossier)]) == 0
     assert (dossier / "reponse" / "Lot 06 - Voirie et réseaux divers").is_dir()
@@ -197,7 +214,8 @@ def test_livraison_retire_point_et_espace_de_fin_de_l_intitule(dossier: Path, ca
 
 
 def test_livraison_reprend_le_dossier_de_lot_existant(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
     ancien = dossier / "reponse" / "Lot 02 - Ancien intitulé"
     ancien.mkdir(parents=True)
     (ancien / "DC1.docx").write_bytes(b"contenu fictif")
@@ -211,7 +229,8 @@ def test_livraison_reprend_le_dossier_de_lot_existant(dossier: Path, capsys):
 
 
 def test_livraison_refuse_deux_dossiers_pour_le_meme_lot(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
     un = dossier / "reponse" / "Lot 02 - Premier intitulé"
     deux = dossier / "reponse" / "Lot 02 - Second intitulé"
     un.mkdir(parents=True)
@@ -230,29 +249,32 @@ def test_livraison_refuse_deux_dossiers_pour_le_meme_lot(dossier: Path, capsys):
 
 def test_livraison_exige_le_lot_quand_plusieurs_sont_retenus(
         dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02", "05"]))
-    avant = empreinte(dossier / "memoire" / "lots.json")
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02,05")
+    avant = empreintes_dossier(dossier)
     assert main(["livraison", "dossier", "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
-    # la spec donne la phrase entre guillemets
+    # phrase imposée par le cahier des charges de la commande
     assert "Choisissez le lot avec --lot parmi : 02, 05." in message
     assert not (dossier / "reponse").exists()  # aucun fichier créé
-    assert empreinte(dossier / "memoire" / "lots.json") == avant
+    assert empreintes_dossier(dossier) == avant
 
 
 def test_livraison_refuse_un_lot_non_retenu(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
-    avant = empreinte(dossier / "memoire" / "lots.json")
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
+    avant = empreintes_dossier(dossier)
     assert main(["livraison", "dossier", "--lot", "07",
                  "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
     assert "07" in message  # l'id fautif est nommé
     assert not (dossier / "reponse").exists()
-    assert empreinte(dossier / "memoire" / "lots.json") == avant
+    assert empreintes_dossier(dossier) == avant
 
 
 def test_livraison_avec_lot_rend_le_dossier_du_lot_demande(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02", "05"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02,05")
     assert main(["livraison", "dossier", "--lot", "05",
                  "--dossier", str(dossier)]) == 0
     sortie = capsys.readouterr().out
@@ -269,7 +291,9 @@ def test_livraison_json_rend_un_seul_objet_avec_ok(dossier: Path, capsys):
 
 
 def test_livraison_json_en_erreur_rend_ok_false(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
+    capsys.readouterr()  # les commandes de préparation ont déjà écrit
     assert main(["livraison", "dossier", "--lot", "07",
                  "--dossier", str(dossier), "--json"]) != 0
     brut = capsys.readouterr()
@@ -277,7 +301,72 @@ def test_livraison_json_en_erreur_rend_ok_false(dossier: Path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# § 4.5 — candidature remplir dans le dossier de remise
+# Un seul lecteur du tri : les commandes hors de `lots` refusent un tri dont
+# le choix a été écrit ou modifié à la main au lieu de lire le relevé
+# ---------------------------------------------------------------------------
+
+MESSAGE_TRI_MODIFIE = ("Le tri des lots a changé depuis son enregistrement : "
+                       "faites-le valider à nouveau.")
+
+
+def _commandes_qui_lisent_le_tri(dossier: Path) -> list[list[str]]:
+    return [
+        ["livraison", "dossier", "--dossier", str(dossier)],
+        ["candidature", "remplir", "--dossier", str(dossier)],
+        ["exporter", "--formats", "analyse", "--dossier", str(dossier)],
+    ]
+
+
+def test_refuse_un_choix_ecrit_a_la_main_sur_un_tri_jamais_enregistre(
+        dossier: Path, capsys):
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02,05")
+    preparer_candidature(dossier)
+    # l'agent réécrit le tri avec un choix qu'il n'a pas le droit d'écrire :
+    # ici le tri n'a jamais été validé avec ce choix (le relevé date d'avant,
+    # il est supprimé pour rejouer un tri jamais enregistré)
+    (dossier / ".remporte" / "lots.json").unlink()
+    tri = tri_alloti()
+    tri["choix"] = {"retenus": ["05"], "par": "Agent",
+                    "date": "2026-11-23T10:00:00+00:00"}
+    chemin_tri = dossier / "memoire" / "lots.json"
+    chemin_tri.write_text(
+        json.dumps(tri, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    avant = empreintes_dossier(dossier)
+
+    for commande in _commandes_qui_lisent_le_tri(dossier):
+        assert main(commande) != 0, commande
+        message = "".join(capsys.readouterr())
+        assert MESSAGE_TRI_MODIFIE in message, (commande, message)
+        assert empreintes_dossier(dossier) == avant, commande
+        assert not (dossier / "reponse").exists()
+
+
+def test_refuse_apres_modification_a_la_main_du_choix(dossier: Path, capsys):
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02,05")
+    preparer_candidature(dossier)
+    # l'agent réduit la liste des lots retenus dans le fichier, sans repasser
+    # par la commande : le relevé ne suit plus le tri
+    chemin_tri = dossier / "memoire" / "lots.json"
+    tri = json.loads(chemin_tri.read_text(encoding="utf-8"))
+    tri["choix"]["retenus"] = ["05"]
+    chemin_tri.write_text(
+        json.dumps(tri, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    avant = empreintes_dossier(dossier)
+
+    for commande in _commandes_qui_lisent_le_tri(dossier):
+        assert main(commande) != 0, commande
+        message = "".join(capsys.readouterr())
+        assert MESSAGE_TRI_MODIFIE in message, (commande, message)
+        assert empreintes_dossier(dossier) == avant, commande
+        assert not (dossier / "reponse").exists()
+
+
+# ---------------------------------------------------------------------------
+# candidature remplir dans le dossier de remise
 # ---------------------------------------------------------------------------
 
 def preparer_candidature(dossier: Path) -> None:
@@ -305,7 +394,8 @@ def test_candidature_remplir_ecrit_les_formulaires_dans_reponse(
 
 def test_candidature_remplir_ecrit_dans_le_dossier_du_lot_alloti(
         dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
     preparer_candidature(dossier)
     assert main(["candidature", "remplir", "--dossier", str(dossier)]) == 0
     cible = dossier / "reponse" / "Lot 02 - Électricité courants forts"
@@ -325,7 +415,7 @@ def test_candidature_remplir_refuse_le_second_appel_sans_remplacer(
         empreintes[nom] = empreinte(chemin) if chemin.is_file() else None
     assert main(["candidature", "remplir", "--dossier", str(dossier)]) != 0
     message = "".join(capsys.readouterr())
-    # la spec donne la phrase entre guillemets
+    # phrase imposée par le cahier des charges de la commande
     assert "DC1.docx existe déjà dans le dossier de remise" in message
     assert "retouché" in message
     assert "Confirmez" in message
@@ -333,6 +423,24 @@ def test_candidature_remplir_refuse_le_second_appel_sans_remplacer(
     for nom, avant in empreintes.items():
         if avant is not None:
             assert empreinte(dossier / "reponse" / nom) == avant, nom
+
+
+def test_candidature_remplir_refuse_sans_creer_le_premier_formulaire(
+        dossier: Path, capsys):
+    """Un formulaire déjà présent est détecté avant d'écrire les autres :
+    DC2 présent, DC1 absent — DC1 ne doit pas apparaître à côté du refus."""
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
+    preparer_candidature(dossier)
+    remise = dossier / "reponse" / "Lot 02 - Électricité courants forts"
+    remise.mkdir(parents=True)
+    (remise / "DC2.docx").write_bytes(b"formulaire retouche a la main")
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) != 0
+    message = "".join(capsys.readouterr())
+    assert "DC2.docx existe déjà dans le dossier de remise" in message
+    assert "Confirmez" in message
+    assert not (remise / "DC1.docx").exists()  # rien créé à côté du refus
+    assert (remise / "DC2.docx").read_bytes() == b"formulaire retouche a la main"
 
 
 def test_candidature_remplir_reecrit_les_formulaires_avec_remplacer(
@@ -353,12 +461,13 @@ def test_candidature_remplir_reecrit_les_formulaires_avec_remplacer(
 
 
 # ---------------------------------------------------------------------------
-# § 4.8 — exporter lit les analyses par lot
+# exporter lit les analyses par lot
 # ---------------------------------------------------------------------------
 
 def test_exporter_construit_l_analyse_depuis_les_lots_retenus(
         dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02", "05"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02,05")
     ecrire_analyse_lot(dossier, "02", date_limite="12 juin 2026 à 17 h 00",
                        en_bref="Lot principal, à répondre avec les moyens internes (fictif).")
     ecrire_analyse_lot(dossier, "05", date_limite=None,
@@ -372,14 +481,18 @@ def test_exporter_construit_l_analyse_depuis_les_lots_retenus(
     assert "Ventilation mécanique" in page_analyse
     assert "Lot principal, à répondre avec les moyens internes (fictif)." in page_analyse
     assert "Lot à confier à un installateur spécialisé (fictif)." in page_analyse
-    # la date limite vient de la rubrique « Identité » du premier lot retenu
-    assert "12 juin 2026 à 17 h 00" in page_analyse + page_feuille
-    # les pièces de « Pièces à remettre et formes imposées » apparaissent
-    assert "DC1, DC2 et le mémoire technique." in page_analyse + page_feuille
+    # la date limite vient de la rubrique « Identité » du premier lot retenu :
+    # elle doit se trouver dans la feuille de route elle-même, pas seulement
+    # quelque part dans l'analyse HTML qui recopie toutes les rubriques
+    assert "12 juin 2026 à 17 h 00" in page_analyse
+    assert "12 juin 2026 à 17 h 00" in page_feuille
+    # les pièces de « Pièces à remettre et formes imposées » aussi
+    assert "DC1, DC2 et le mémoire technique." in page_feuille
 
 
 def test_exporter_ne_lit_plus_02_analyse(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"]))
+    enregistrer_tri(dossier, tri_alloti())
+    choisir_lots(dossier, "02")
     ecrire_analyse_lot(dossier, "02", date_limite="12 juin 2026 à 17 h 00",
                        en_bref="Lot principal (fictif).")
     ancienne = dossier / "02-analyse.md"
@@ -399,9 +512,7 @@ def test_exporter_ne_lit_plus_02_analyse(dossier: Path, capsys):
 
 
 def test_exporter_sans_choix_le_dit_et_sort_proprement(dossier: Path, capsys):
-    tri = lots_alloti(["02"])
-    tri["choix"] = None  # tri enregistré, lots pas encore choisis
-    ecrire_lots(dossier, tri)
+    enregistrer_tri(dossier, tri_alloti())  # tri validé, lots pas encore choisis
     ecrire_analyse_lot(dossier, "02", date_limite="12 juin 2026 à 17 h 00",
                        en_bref="Lot principal (fictif).")
     assert main(["exporter", "--dossier", str(dossier),
@@ -419,7 +530,7 @@ def test_exporter_sans_tri_le_dit_aussi_et_sort_proprement(dossier: Path, capsys
 
 
 # ---------------------------------------------------------------------------
-# § 4.9 — guide de style
+# guide de style
 # ---------------------------------------------------------------------------
 
 def test_guide_liste_mentionne_style(capsys):

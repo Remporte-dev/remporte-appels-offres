@@ -4,18 +4,21 @@ matrice-conformite.xlsx produits par `remporte exporter`.
 `exporter` ne lit plus `02-analyse.md` : l'analyse HTML et la feuille de
 route se construisent depuis `analyse/lot-<id>.md` des lots retenus, une
 partie par lot, la date limite reprise de « Identité » du premier lot qui la
-donne, les pièces de « Pièces à remettre et formes imposées ».
+donne, les pièces de « Pièces à remettre et formes imposées ». La feuille de
+route ne peut pas contredire `remporte etat` sur l'étape analyse.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 from conftest import fabriquer_docx
 
 from remporte import espace, export
+from remporte.cli import main
 
 MOTS = " ".join(f"mot{index}" for index in range(60))
 
@@ -130,8 +133,7 @@ LOTS_JSON = {
     "pieces_communes": [],
     "pieces_illisibles": [],
     "types_pieces": {"dce/RC.docx": "RC"},
-    "choix": {"retenus": ["02", "05"], "par": "Camille Exemple",
-              "date": "2026-11-23T09:00:00+00:00"},
+    "choix": None,  # le choix est écrit par `lots choisir`, jamais à la main
 }
 
 GO_NO_GO = """# Go / No-Go
@@ -163,8 +165,9 @@ PLAN = """# Plan du mémoire technique
 
 @pytest.fixture()
 def dossier_pret(tmp_path: Path) -> Path:
-    """Dossier alloti, deux lots retenus, analyses par lot remplies, go/no-go
-    et plan faits, une section rédigée. Pas de `02-analyse.md`."""
+    """Dossier alloti, deux lots retenus par `lots choisir`, analyses par lot
+    remplies, go/no-go et plan faits, une section rédigée. Pas de
+    `02-analyse.md`."""
     source = tmp_path / "DCE"
     source.mkdir()
     fabriquer_docx(source / "RC.docx")
@@ -175,6 +178,9 @@ def dossier_pret(tmp_path: Path) -> Path:
     (memoire / "lots.json").write_text(
         json.dumps(LOTS_JSON, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
+    assert main(["lots", "choisir", "--lots", "02,05",
+                 "--par", "Camille Exemple", "--dossier", str(dossier)]) == 0
     analyse = dossier / "analyse"
     analyse.mkdir(exist_ok=True)
     (analyse / "lot-02.md").write_text(LOT_02, encoding="utf-8")
@@ -224,6 +230,102 @@ def test_feuille_de_route_html(dossier_pret: Path):
     assert "03-go-no-go.md" in page  # regroupement par fichier
     assert "DC1 et DC2" in page  # pièces à remettre
     assert _aucune_ressource_externe(page)
+
+
+def test_la_feuille_de_route_ne_contredit_pas_l_etat_de_l_analyse(
+        dossier_pret: Path, capsys):
+    """Une question non conforme rend le lot « en cours » pour `remporte etat` :
+    la feuille de route, lue par le dirigeant, doit le dire aussi."""
+    question_non_conforme = {
+        "questions_acheteur": [{
+            "id": "I-1",
+            "contexte": "Deux prescriptions du lot diffèrent sur les prises.",
+            "question": "Quel nombre de prises retenir",  # sans point d'interrogation
+            "sources": ["CCTP article 4.2"],
+            "impact_prix": "Écart de prix sur le lot.",
+        }]}
+    (dossier_pret / "analyse" / "lot-02.json").write_text(
+        json.dumps(question_non_conforme, ensure_ascii=False), encoding="utf-8")
+
+    bilan = espace.etat(dossier_pret)
+    assert bilan["etapes"]["analyse"]["etat"] == "en_cours"
+
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert not re.search(r"<td>\s*Analyse\s*</td>\s*<td>\s*faite\s*</td>", page), page
+    assert re.search(r"<td>\s*Analyse\s*</td>\s*<td>\s*en cours\s*</td>", page), page
+
+
+# La même analyse du lot 02, avec l'identité en liste et non en tableau.
+LOT_02_LISTE = """# Analyse du lot 02 — Électricité courants forts
+
+## En bref
+
+Lot principal, à répondre avec les moyens internes (fictif).
+
+## Identité
+
+- Acheteur : Ville d'Exemple
+- Date et heure limites de remise : 12 juin 2026 à 17 h 00 [RC art. 5]
+- Objet : Réhabilitation des réseaux (fictif)
+
+## Ce que l'acheteur attend vraiment
+
+Des armoires reprises et un contrôle complet des installations (fictif).
+
+## Critères et pondérations
+
+- Valeur technique : 50 % [RC art. 7]
+- Prix : 40 % [RC art. 7]
+
+## Pièces à remettre et formes imposées
+
+- DC1 et DC2, mémoire technique.
+
+## Incohérences entre pièces
+
+Aucune (fictif).
+
+## Pièces illisibles ou absentes
+
+Aucune.
+
+## Documents de référence et versions
+
+RC du 2 mars (fictif).
+
+## Avis
+
+Répondre (fictif).
+"""
+
+# Le libellé parle de remise mais ni de date ni de limite : il ne doit pas
+# passer pour la date limite, même s'il porte une valeur qui en a la forme.
+LOT_02_SANS_DATE = LOT_02_LISTE.replace(
+    "- Date et heure limites de remise : 12 juin 2026 à 17 h 00 [RC art. 5]",
+    "- Remise des offres : le 3 juillet 2026 selon le RC")
+
+
+def test_la_date_limite_est_reprise_d_une_ligne_de_liste(dossier_pret: Path, capsys):
+    """La date limite se lit aussi dans une liste d'identité, et la source
+    entre crochets ne part pas chez le dirigeant."""
+    (dossier_pret / "analyse" / "lot-02.md").write_text(LOT_02_LISTE, encoding="utf-8")
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert "12 juin 2026 à 17 h 00" in page, page
+    assert "[RC art. 5]" not in page
+
+
+def test_un_libelle_sans_date_et_limite_et_remise_ne_donne_pas_de_date(
+        dossier_pret: Path, capsys):
+    (dossier_pret / "analyse" / "lot-02.md").write_text(LOT_02_SANS_DATE, encoding="utf-8")
+    assert main(["exporter", "--formats", "feuille",
+                 "--dossier", str(dossier_pret)]) == 0
+    page = (dossier_pret / "export" / "feuille-de-route.html").read_text(encoding="utf-8")
+    assert "12 juin 2026" not in page, page
+    assert "3 juillet 2026" not in page, page
 
 
 def test_matrice_exigences_crt(dossier_pret: Path, monkeypatch):
