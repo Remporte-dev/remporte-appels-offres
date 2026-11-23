@@ -6,6 +6,10 @@ l'utilisateur a décidé de ne pas produire de mémoire, ces trois étapes sont
 sautées : produis les autres pièces de l'offre.
 
 Tout ce qui part chez l'acheteur se range dans `reponse/`, et rien d'autre.
+Quand le marché est alloti, chaque lot retenu a son dossier, même s'il n'y en a
+qu'un : `remporte livraison dossier --lot <id>` le crée et donne son chemin
+(`reponse/Lot <id> - <intitulé>/`). Toutes les pièces du lot s'y rangent, DC1
+et DC2 compris.
 
 1. **Les livrables bureautiques, c'est toi qui les produis**, avec tes propres
    outils (traitement de texte, présentation, tableur), dans le format que

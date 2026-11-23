@@ -110,10 +110,11 @@ l'abonnement et ton propre contexte :
 
 Si un agent spécialisé est indisponible, transmets la procédure correspondante et le chemin du dossier à un sous-agent générique si l’environnement en propose un. Sinon, exécute toi-même cette étape avec `remporte guide <étape>`, dans le même ordre. Pour la rédaction et la relecture, applique le même recours. Pendant la relecture, ne modifie aucune section.
 
-Avant que l'étape suivante ne parte, fais relire l'analyse, le plan et chaque pièce
-par un agent qui ne les a pas produits ; il écrit `relectures/<étape>.md`. Applique
-ses corrections ; ne passe pas à l'export tant qu'une relecture signale un point
-bloquant. Quand toutes les pièces sont prêtes, lance le contrôle de cohérence
+Avant que l'étape suivante ne parte, fais relire le plan et chaque pièce par un
+agent qui ne les a pas produits ; il écrit `relectures/<étape>.md`. L'analyse d'un
+lot ne se fait relire que si l'utilisateur ne l'a pas validée au go/no-go.
+Applique les corrections ; tant qu'une relecture, à n'importe quelle étape,
+signale un point bloquant, rien ne part chez l'acheteur. Quand toutes les pièces sont prêtes, lance le contrôle de cohérence
 (`06-coherence.md`, sous-agent `remporte:controleur-coherence`) en même temps que la
 relecture du mémoire. Applique leurs corrections, et soumets à l'utilisateur, en une
 seule fois et avec ta recommandation, les écarts marqués « à trancher par
@@ -127,7 +128,8 @@ compte d'autres pièces, et un dossier incomplet est écarté. Reprends « Pièc
 remettre et formes imposées » de chaque `analyse/lot-<id>.md` retenu et présente
 chaque pièce avec son état :
 
-- **faite** : le fichier est dans `reponse/` ;
+- **faite** : le fichier est dans le dossier de remise (`reponse/`, ou le
+  dossier du lot que donne `remporte livraison dossier --lot <id>`) ;
 - **à produire par toi** : bordereau de prix (avec ses prix), fichiers imposés,
   acte d'engagement, DC1, DC2, DC4, présentation ;
 - **à fournir par lui** : attestations, K-bis, assurance, signature.
