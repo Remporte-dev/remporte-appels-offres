@@ -233,7 +233,7 @@ def test_livraison_exige_le_lot_quand_plusieurs_sont_retenus(
     ecrire_lots(dossier, lots_alloti(["02", "05"]))
     avant = empreinte(dossier / "memoire" / "lots.json")
     assert main(["livraison", "dossier", "--dossier", str(dossier)]) != 0
-    message = capsys.readouterr().out + capsys.readouterr().err
+    message = "".join(capsys.readouterr())
     # la spec donne la phrase entre guillemets
     assert "Choisissez le lot avec --lot parmi : 02, 05." in message
     assert not (dossier / "reponse").exists()  # aucun fichier créé
@@ -245,7 +245,7 @@ def test_livraison_refuse_un_lot_non_retenu(dossier: Path, capsys):
     avant = empreinte(dossier / "memoire" / "lots.json")
     assert main(["livraison", "dossier", "--lot", "07",
                  "--dossier", str(dossier)]) != 0
-    message = capsys.readouterr().out + capsys.readouterr().err
+    message = "".join(capsys.readouterr())
     assert "07" in message  # l'id fautif est nommé
     assert not (dossier / "reponse").exists()
     assert empreinte(dossier / "memoire" / "lots.json") == avant
@@ -324,7 +324,7 @@ def test_candidature_remplir_refuse_le_second_appel_sans_remplacer(
         chemin = dossier / "reponse" / nom
         empreintes[nom] = empreinte(chemin) if chemin.is_file() else None
     assert main(["candidature", "remplir", "--dossier", str(dossier)]) != 0
-    message = capsys.readouterr().out + capsys.readouterr().err
+    message = "".join(capsys.readouterr())
     # la spec donne la phrase entre guillemets
     assert "DC1.docx existe déjà dans le dossier de remise" in message
     assert "retouché" in message
@@ -399,12 +399,14 @@ def test_exporter_ne_lit_plus_02_analyse(dossier: Path, capsys):
 
 
 def test_exporter_sans_choix_le_dit_et_sort_proprement(dossier: Path, capsys):
-    ecrire_lots(dossier, lots_alloti(["02"], choix=None))
+    tri = lots_alloti(["02"])
+    tri["choix"] = None  # tri enregistré, lots pas encore choisis
+    ecrire_lots(dossier, tri)
     ecrire_analyse_lot(dossier, "02", date_limite="12 juin 2026 à 17 h 00",
                        en_bref="Lot principal (fictif).")
     assert main(["exporter", "--dossier", str(dossier),
                  "--formats", "analyse"]) == 0
-    message = capsys.readouterr().out + capsys.readouterr().err
+    message = "".join(capsys.readouterr())
     assert "chois" in message.casefold()  # le choix des lots lui est demandé
 
 
@@ -412,7 +414,7 @@ def test_exporter_sans_tri_le_dit_aussi_et_sort_proprement(dossier: Path, capsys
     # aucun memoire/lots.json
     assert main(["exporter", "--dossier", str(dossier),
                  "--formats", "analyse"]) == 0
-    message = capsys.readouterr().out + capsys.readouterr().err
+    message = "".join(capsys.readouterr())
     assert "chois" in message.casefold()
 
 

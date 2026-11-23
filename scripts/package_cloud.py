@@ -50,7 +50,7 @@ def build_cloud(platform: str, wheel: Path, output: Path) -> Path:
         "Ne prétends pas que l'outil est installé avant une vérification réussie de sa version.\n\n"
         "Lis `skills/remporte-init/SKILL.md` et accompagne-moi pour choisir un dossier de travail dans cet environnement. "
         "Demande mes documents d'entreprise et mon DCE, puis utilise les fichiers que j'y ai fournis. "
-        "Lis ensuite `skills/remporte-nouvel-ao/SKILL.md` pour conduire la réponse. "
+        "Lis ensuite `skills/remporte-repondre-ao/SKILL.md` pour conduire la réponse. "
         "Chaque compétence contient ses propres références dans references/. Les autres compétences sont dans skills/. "
         "Si ta plateforme permet d'enregistrer des compétences personnalisées, utilise son mécanisme documenté ; "
         "sinon lis ces fichiers directement à chaque étape. N'invente pas un dossier système de compétences.\n\n"

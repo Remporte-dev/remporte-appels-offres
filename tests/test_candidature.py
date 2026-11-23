@@ -238,7 +238,7 @@ def test_remplir_dc4_produit_seulement_avec_sous_traitance(dossier: Path):
     valeurs["DC4"]["champs"]["sous_traitance"]["valeur"] = False
     ecrire_valeurs(dossier, valeurs)
     (dossier / "reponse" / "DC4.docx").unlink()
-    resultat = candidature.remplir(dossier)
+    resultat = candidature.remplir(dossier, remplacer=True)
     assert not (dossier / "reponse" / "DC4.docx").exists()
     assert resultat["non_produits"][0]["formulaire"] == "DC4"
 

@@ -101,20 +101,6 @@ def _portable_skill(name: str, source: Path) -> tuple[str, set[str]]:
     body = re.sub(r"`(remporte-[a-z-]+)` dans Codex ou `\1` dans Claude Code", r"la compétence `\1`", body)
     body = re.sub(r"`(remporte-[a-z-]+)` dans Codex, `/??\1` dans Claude Code", r"la compétence `\1`", body)
     body = body.replace("(`remporte-init` dans Codex, `remporte-init` dans Claude Code)", "(compétence `remporte-init`)")
-    body = body.replace("demandez `remporte-nouvel-ao` dans Codex, ou utilisez `remporte-nouvel-ao` dans Claude Code", "demandez la compétence `remporte-nouvel-ao`")
-    if name == "nouvel-ao":
-        table = """| Étape | Procédure |
-|---|---|
-| Index et analyse | compétence `remporte-lecture-dce`, [lecture du DCE](references/lecture-dce.md) |
-| Go/No-Go | avec l'utilisateur, `remporte guide go-no-go`, analyse et `remporte fiche` |
-| Plan | `remporte guide plan` |
-| Rédaction | compétence `remporte-redaction-section`, [rédaction d'une section](references/redaction-section.md) |
-| Relecture | compétence `remporte-relecture-ao`, [relecture](references/relecture-ao.md) |
-| Livrables | `remporte guide livrables`, puis la compétence Remporte du livrable, en demandant d'abord le modèle de l'entreprise |
-| Documents de travail | `remporte exporter` |
-"""
-        body = re.sub(r"(?m)^\| Étape \|.*?^\| Documents de travail \|[^\n]*\n", table, body, flags=re.S)
-        references.update({"lecture-dce.md", "redaction-section.md", "relecture-ao.md"})
     return f"---\n{header.strip()}\n---\n{body}", references
 
 
