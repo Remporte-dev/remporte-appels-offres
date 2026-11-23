@@ -1,8 +1,15 @@
 """Tests des livrables de travail : analyse.html, feuille-de-route.html et
-matrice-conformite.xlsx produits par `remporte exporter`."""
+matrice-conformite.xlsx produits par `remporte exporter`.
+
+`exporter` ne lit plus `02-analyse.md` : l'analyse HTML et la feuille de
+route se construisent depuis `analyse/lot-<id>.md` des lots retenus, une
+partie par lot, la date limite reprise de « Identité » du premier lot qui la
+donne, les pièces de « Pièces à remettre et formes imposées ».
+"""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -12,26 +19,32 @@ from remporte import espace, export
 
 MOTS = " ".join(f"mot{index}" for index in range(60))
 
-ANALYSE = """# Analyse du DCE
+LOT_02 = """# Analyse du lot 02 — Électricité courants forts
 
-## Identité de la consultation
+## En bref
+
+Lot principal, à répondre avec les moyens internes (fictif).
+
+## Identité
 
 | | |
 |---|---|
-| Acheteur | Ville d'Orsay |
-| Objet | Infogérance du SI municipal |
+| Acheteur | Ville d'Exemple |
+| Objet | Réhabilitation des réseaux (fictif) |
 | Date limite de remise | 12 juin 2026 à 17 h 00 |
 
-## Critères de jugement
+## Ce que l'acheteur attend vraiment
 
-| Critère | Pondération | Sous-critères et ce qui est noté | Source |
-|---|---|---|---|
-| Valeur technique | 50 % | Méthode et moyens | [RC art. 7] |
-| Environnement | 10 % | Sobriété numérique | [RC art. 7] |
-| Prix | 40 % | DPGF et DQE | [RC art. 7] |
-| Cadre de réponse | [RC] | Trame imposée | [CRT] |
+Des armoires reprises et un contrôle complet des installations (fictif).
 
-## Pièces à remettre
+## Critères et pondérations
+
+| Critère | Pondération | Source |
+|---|---|---|
+| Valeur technique | 50 % | [RC art. 7] |
+| Prix | 40 % | [RC art. 7] |
+
+## Pièces à remettre et formes imposées
 
 ### Candidature
 - DC1 et DC2.
@@ -39,10 +52,87 @@ ANALYSE = """# Analyse du DCE
 ### Offre
 - Mémoire technique.
 
-## Points de vigilance
+## Incohérences entre pièces
 
-- Pénalités de retard.
+Le CCTP demande quarante prises, le bordereau en compte trente-deux (fictif).
+
+## Pièces illisibles ou absentes
+
+Aucune.
+
+## Documents de référence et versions
+
+RC du 2 mars, CCTP version B (fictif).
+
+## Avis
+
+Répondre (fictif).
 """
+
+LOT_05 = """# Analyse du lot 05 — Ventilation mécanique
+
+## En bref
+
+Lot à confier à un installateur spécialisé (fictif).
+
+## Identité
+
+| | |
+|---|---|
+| Acheteur | Ville d'Exemple |
+| Objet | Réhabilitation des réseaux (fictif) |
+
+## Ce que l'acheteur attend vraiment
+
+Des centrales de traitement d'air entretenues chaque trimestre (fictif).
+
+## Critères et pondérations
+
+| Critère | Pondération | Source |
+|---|---|---|
+| Valeur technique | 60 % | [RC art. 7] |
+| Prix | 30 % | [RC art. 7] |
+
+## Pièces à remettre et formes imposées
+
+- Note de calcul en annexe (fictif).
+
+## Incohérences entre pièces
+
+Aucune (fictif).
+
+## Pièces illisibles ou absentes
+
+Aucune.
+
+## Documents de référence et versions
+
+CCTP version C (fictif).
+
+## Avis
+
+À discuter (fictif).
+"""
+
+LOTS_JSON = {
+    "schema_version": 1,
+    "allotissement": "lots",
+    "lots": [
+        {"id": "02", "intitule": "Électricité courants forts",
+         "pieces": ["dce/RC.docx"], "parties_communes": [],
+         "recommandation": {"avis": "repondre",
+                            "raison": "Cœur du métier de l'entreprise (fictif)."}},
+        {"id": "05", "intitule": "Ventilation mécanique",
+         "pieces": [], "parties_communes": [],
+         "recommandation": {"avis": "a_discuter",
+                            "raison": "Sous-traitance probable (fictif)."}},
+    ],
+    "pieces_communes": [],
+    "pieces_illisibles": [],
+    "types_pieces": {"dce/RC.docx": "RC"},
+    "choix": {"retenus": ["02", "05"], "par": "Camille Exemple",
+              "date": "2026-11-23T09:00:00+00:00"},
+}
 
 GO_NO_GO = """# Go / No-Go
 
@@ -73,13 +163,22 @@ PLAN = """# Plan du mémoire technique
 
 @pytest.fixture()
 def dossier_pret(tmp_path: Path) -> Path:
-    """Dossier de réponse rempli : analyse, go/no-go, plan, une section rédigée."""
+    """Dossier alloti, deux lots retenus, analyses par lot remplies, go/no-go
+    et plan faits, une section rédigée. Pas de `02-analyse.md`."""
     source = tmp_path / "DCE"
     source.mkdir()
     fabriquer_docx(source / "RC.docx")
     dossier = tmp_path / "reponse"
     espace.initialiser(source, dossier)
-    (dossier / "02-analyse.md").write_text(ANALYSE, encoding="utf-8")
+    memoire = dossier / "memoire"
+    memoire.mkdir(exist_ok=True)
+    (memoire / "lots.json").write_text(
+        json.dumps(LOTS_JSON, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    analyse = dossier / "analyse"
+    analyse.mkdir(exist_ok=True)
+    (analyse / "lot-02.md").write_text(LOT_02, encoding="utf-8")
+    (analyse / "lot-05.md").write_text(LOT_05, encoding="utf-8")
     (dossier / "03-go-no-go.md").write_text(GO_NO_GO, encoding="utf-8")
     (dossier / "04-plan.md").write_text(PLAN, encoding="utf-8")
     (dossier / "sections" / "01-moyens.md").write_text(
@@ -93,11 +192,16 @@ def test_analyse_html(dossier_pret: Path):
     resultat = export.exporter(dossier_pret, {"analyse"})
     assert resultat["analyse"] == dossier_pret / "export" / "analyse.html"
     page = resultat["analyse"].read_text(encoding="utf-8")
-    assert "Infogérance du SI municipal" in page  # objet en en-tête
-    assert "Ville d'Orsay" in page  # acheteur
-    assert "12 juin 2026 à 17 h 00" in page  # date limite de remise
+    # une partie par lot retenu, avec les contenus de chaque analyse de lot
+    assert "Électricité courants forts" in page
+    assert "Ventilation mécanique" in page
+    assert "Lot principal, à répondre avec les moyens internes (fictif)." in page
+    assert "Lot à confier à un installateur spécialisé (fictif)." in page
+    assert "Réhabilitation des réseaux (fictif)" in page  # objet
+    assert "Ville d'Exemple" in page  # acheteur
+    assert "12 juin 2026 à 17 h 00" in page  # date limite de remise (lot 02)
     assert "50 %" in page and "40 %" in page  # critères pondérés
-    assert "<strong>Go.</strong>" in page  # verdict
+    assert "<strong>Go.</strong>" in page  # verdict du go/no-go (inchangé)
     assert "Méthode :" not in page  # notes de travail du gabarit retirées
     assert "<style>" in page and "</html>" in page  # page autonome complète
     assert _aucune_ressource_externe(page)

@@ -10,8 +10,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "package_skills.py"
+# La compétence nouvel-ao est retirée : douze compétences, et aucune mention
+# d'elle dans les archives produites.
 SKILL_NAMES = {
-    "remporte-init", "remporte-lecture-dce", "remporte-nouvel-ao",
+    "remporte-init", "remporte-lecture-dce",
     "remporte-redaction-section", "remporte-relecture-ao", "remporte-repondre-ao",
     "remporte-memoire-technique", "remporte-cadre-reponse", "remporte-fichier-impose",
     "remporte-chiffrage", "remporte-visuels", "remporte-soutenance", "remporte-candidature",
@@ -35,15 +37,16 @@ def test_export_extracts_portable_self_contained_skills(tmp_path, platform):
     root = extract if platform == "gemini" else extract / "remporte"
     skill_dirs = sorted((root / "skills").iterdir())
     assert {p.name for p in skill_dirs} == SKILL_NAMES
+    assert len(skill_dirs) == 12
+    archive_names = zipfile.ZipFile(archive_path).namelist()
+    assert not any("nouvel-ao" in name for name in archive_names)
     for directory in skill_dirs:
         skill_file = directory / "SKILL.md"
         text = skill_file.read_text(encoding="utf-8")
         assert re.search(r"(?m)^name: " + re.escape(directory.name) + r"$", text)
         assert "propre à Claude Code" not in text
         assert "dans Codex ou" not in text
-        if directory.name == "remporte-nouvel-ao":
-            table = text.split("| Étape |", 1)[1].split("\n\n", 1)[0]
-            assert all(line.count("|") == 3 for line in table.splitlines() if line.startswith("|"))
+        assert "nouvel-ao" not in text
         assert "disable-model-invocation" not in text
         assert not re.search(r"(?:\$|/)remporte:[a-z0-9-]+", text)
         assert "../../references/" not in text
