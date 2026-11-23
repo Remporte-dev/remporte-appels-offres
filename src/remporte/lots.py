@@ -12,9 +12,8 @@ import unicodedata
 import webbrowser
 from difflib import get_close_matches
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
-from remporte import charte, espace
+from remporte import charte, ecritures, espace
 from remporte.espace import Erreur
 
 RUBRIQUES = (
@@ -31,6 +30,8 @@ RUBRIQUES = (
 
 _TRI = Path("memoire/lots.json")
 _TRI_ENREGISTRE = Path(".remporte/lots.json")
+_TRI_MODIFIE = ("Le tri des lots a changé depuis son enregistrement : "
+                "faites-le valider à nouveau.")
 _AVIS = {"repondre": "Répondre", "a_discuter": "À discuter",
          "ne_pas_repondre": "Ne pas répondre"}
 _TYPES = ("RC", "CCAP", "CCTP", "DPGF", "BPU", "plan", "autre")
@@ -47,16 +48,25 @@ def _texte(valeur) -> bool:
     return isinstance(valeur, str) and bool(valeur.strip())
 
 
-def _json(donnees) -> str:
-    return json.dumps(donnees, ensure_ascii=False, indent=2) + "\n"
+def _json(donnees) -> bytes:
+    return (json.dumps(donnees, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 def _texte_fichier(chemin: Path) -> str:
     try:
-        return chemin.read_text(encoding="utf-8")
+        texte = chemin.read_text(encoding="utf-8-sig")
+        if chemin.suffix == ".json" and "\x00" in texte:
+            raise Erreur(f"Enregistrez {chemin.name} en UTF-8.")
+        return texte
     except FileNotFoundError:
         raise Erreur(f"Le fichier {chemin.name} est absent.") from None
-    except (OSError, UnicodeError):
+    except PermissionError:
+        raise Erreur(f"Fermez {chemin.name} puis relancez.") from None
+    except UnicodeError:
+        message = (f"Enregistrez {chemin.name} en UTF-8." if chemin.suffix == ".json"
+                   else f"Le fichier {chemin.name} est illisible.")
+        raise Erreur(message) from None
+    except OSError:
         raise Erreur(f"Le fichier {chemin.name} est illisible.") from None
 
 
@@ -71,13 +81,13 @@ def _objet_sans_doublon(paires: list[tuple[str, object]]) -> dict:
     return objet
 
 
-def _lire_objet(chemin: Path) -> dict:
+def _lire_objet(chemin: Path, erreur: str | None = None) -> dict:
     try:
         donnees = json.loads(_texte_fichier(chemin), object_pairs_hook=_objet_sans_doublon)
     except ValueError:
         donnees = None
     if not isinstance(donnees, dict):
-        raise Erreur(f"Le fichier {chemin.name} est illisible.")
+        raise Erreur(erreur or f"Le fichier {chemin.name} est illisible.")
     return donnees
 
 
@@ -91,6 +101,8 @@ def _chemins_du_dce(inventaire: dict[str, dict]):
         variantes.setdefault(_normaliser_chemin(chemin), []).append(chemin)
 
     def resoudre(chemin) -> str:
+        if not isinstance(chemin, str):
+            raise Erreur("Chemin de pièce du DCE invalide (valeur attendue : un texte).")
         if not _texte(chemin) or not chemin.startswith("dce/") or "\\" in chemin:
             raise Erreur(f"Chemin de pièce du DCE invalide : {chemin}.")
         if any(partie in ("", ".", "..") for partie in chemin.split("/")):
@@ -123,14 +135,17 @@ def _valider_lots(tri: dict) -> list[str]:
     if not isinstance(tri.get("lots"), list) or not tri["lots"]:
         raise Erreur("Le tri doit contenir au moins un lot.")
     ids: list[str] = []
+    ids_normalises = set()
     for lot in tri["lots"]:
         identifiant = lot.get("id") if isinstance(lot, dict) else None
         if not _texte(identifiant):
             raise Erreur(f"Renseignez l'identifiant du lot n° {len(ids) + 1}.")
+        normalise = unicodedata.normalize("NFC", identifiant).casefold()
+        if normalise in ids_normalises:
+            raise Erreur(f"Le lot {identifiant} figure deux fois dans le tri.")
         if identifiant in (".", "..") or not re.fullmatch(r"[\w. -]+", identifiant):
             raise Erreur(f"Identifiant de lot invalide : {identifiant}.")
-        if identifiant in ids:
-            raise Erreur(f"Le lot {identifiant} figure deux fois dans le tri.")
+        ids_normalises.add(normalise)
         ids.append(identifiant)
         if not _texte(lot.get("intitule")):
             raise Erreur(f"Renseignez l'intitulé du lot {identifiant}.")
@@ -149,8 +164,7 @@ def _valider_lots(tri: dict) -> list[str]:
     return ids
 
 
-def _lire_tri(dossier: Path) -> dict:
-    tri = _lire_objet(dossier / _TRI)
+def _valider_tri(dossier: Path, tri: dict) -> dict:
     ids = _valider_lots(tri)
     pieces = _lire_objet(dossier / ".remporte/etat.json").get("pieces")
     if not isinstance(pieces, list) or any(
@@ -173,6 +187,8 @@ def _lire_tri(dossier: Path) -> dict:
         if not isinstance(liees, list):
             raise Erreur(f"Renseignez les lots qui ont une partie commune avec le lot {identifiant}.")
         for autre in liees:
+            if not isinstance(autre, str):
+                raise Erreur(f"Partie commune du lot {identifiant} invalide (valeur attendue : un texte).")
             if autre == identifiant or autre not in ids:
                 raise Erreur(f"Partie commune du lot {identifiant} : lot {autre} invalide.")
         lot["pieces"] = chemins(lot.get("pieces"), f"pièces du lot {identifiant}")
@@ -193,6 +209,8 @@ def _lire_tri(dossier: Path) -> dict:
     normalises: dict[str, str] = {}
     for chemin, type_piece in types.items():
         chemin = resoudre(chemin)
+        if not isinstance(type_piece, str):
+            raise Erreur(f"Type de pièce inconnu pour {chemin} (valeur attendue : un texte).")
         if type_piece not in _TYPES:
             raise Erreur(f"Type de pièce inconnu pour {chemin} : {type_piece}.")
         if chemin in normalises and normalises[chemin] != type_piece:
@@ -227,48 +245,40 @@ def _preuve_enregistree(dossier: Path) -> dict:
     return preuve
 
 
-def lire(dossier: Path) -> dict:
+def lire(dossier: Path) -> dict | None:
     """Lit le tri enregistré, après contrôle de l'inventaire actuel."""
     dossier = Path(dossier)
-    tri = _lire_tri(dossier)
-    if "choix" not in tri or _preuve_enregistree(dossier) != _preuve(tri):
-        raise Erreur("Enregistrez le tri des lots avec « remporte lots enregistrer ».")
-    return tri
-
-
-def _ecrire(fichiers: dict[Path, str], *, nouveaux: tuple[Path, ...] = ()) -> None:
-    """Prépare toutes les écritures avant de publier les fichiers un à un."""
-    temporaires: dict[Path, Path] = {}
-    chemin = next(iter(fichiers))
+    chemin = dossier / _TRI
     try:
-        for chemin in fichiers:
-            if chemin.parent.resolve() != chemin.parent or (
-                chemin not in nouveaux and (chemin.is_symlink() or chemin.is_dir())
-            ):
-                raise Erreur(f"Impossible d'écrire le fichier {chemin.name} dans le dossier de réponse.")
-        for chemin, texte in fichiers.items():
-            chemin.parent.mkdir(exist_ok=True)
-            with NamedTemporaryFile(dir=chemin.parent, delete=False) as temporaire:
-                temporaires[chemin] = Path(temporaire.name)
-                temporaire.write(texte.encode("utf-8"))
-        for chemin, temporaire in temporaires.items():
-            if chemin in nouveaux:
-                try:
-                    chemin.hardlink_to(temporaire)
-                except FileExistsError:
-                    pass
-            else:
-                temporaire.replace(chemin)
-    except (OSError, UnicodeError):
-        raise Erreur(f"Impossible d'écrire le fichier {chemin.name} dans le dossier de réponse.") from None
-    finally:
-        for temporaire in temporaires.values():
-            temporaire.unlink(missing_ok=True)
+        chemin.lstat()
+    except FileNotFoundError:
+        return None
+    except PermissionError:
+        raise Erreur(f"Fermez {chemin.name} puis relancez.") from None
+    except OSError:
+        raise Erreur(f"Le fichier {chemin.name} est illisible.") from None
+    tri = _lire_objet(chemin, _TRI_MODIFIE)
+    if "choix" not in tri or _preuve_enregistree(dossier) != _preuve(tri):
+        raise Erreur(_TRI_MODIFIE)
+    return _valider_tri(dossier, tri)
+
+
+def colonne_lot(tri: dict | None) -> dict[str, str]:
+    """Donne le libellé de lot des pièces réparties dans le tri."""
+    if tri is None:
+        return {}
+    morceaux: dict[str, list[str]] = {}
+    for lot in tri["lots"]:
+        for chemin in dict.fromkeys(lot["pieces"]):
+            morceaux.setdefault(chemin, []).append(lot["id"])
+    libelles = {chemin: ", ".join(ids) for chemin, ids in morceaux.items()}
+    libelles.update(dict.fromkeys(tri["pieces_communes"], "commun"))
+    return libelles
 
 
 def enregistrer(dossier: Path) -> dict:
     dossier = Path(dossier).resolve()
-    tri = _lire_tri(dossier)
+    tri = _valider_tri(dossier, _lire_objet(dossier / _TRI))
     preuve = dossier / _TRI_ENREGISTRE
     choix = _preuve_enregistree(dossier).get("choix")
     if tri.get("choix") is not None and choix is None:
@@ -278,18 +288,15 @@ def enregistrer(dossier: Path) -> dict:
     ids = _ids(tri)
     disparus = [lot for lot in choix["retenus"] if lot not in ids] if choix else []
     tri["choix"] = None if disparus else choix
-    morceaux: dict[str, list[str]] = {}
-    for lot in tri["lots"]:
-        for chemin in dict.fromkeys(lot["pieces"]):
-            morceaux.setdefault(espace._nom(chemin), []).append(lot["id"])
-    for chemin in tri["pieces_communes"]:
-        morceaux[espace._nom(chemin)] = ["commun"]
+    libelles = {espace._nom(p): lot for p, lot in colonne_lot(tri).items()}
     inventaire = dossier / "01-pieces.md"
     texte = _LIGNE_INVENTAIRE.sub(
-        lambda ligne: ligne[1] + ", ".join(morceaux.get(ligne[3], ["—"])) + ligne[2],
+        lambda ligne: ligne[1] + libelles.get(ligne[3], "—") + ligne[2],
         _texte_fichier(inventaire),
     )
-    _ecrire({inventaire: texte, dossier / _TRI: _json(tri), preuve: _json(_preuve(tri))})
+    ecritures.publier(dossier, {inventaire: texte.encode("utf-8"),
+                                dossier / _TRI: _json(tri),
+                                preuve: _json(_preuve(tri))})
     resultat = {"lots": ids, "pieces_communes": len(tri["pieces_communes"]), "choix": tri["choix"]}
     if disparus:
         resultat["message"] = f"Choix des lots à refaire. Lots retirés du tri : {', '.join(disparus)}."
@@ -305,6 +312,8 @@ def _numero(identifiant: str) -> str | None:
 def choisir(dossier: Path, demande: str, par: str) -> dict:
     dossier = Path(dossier).resolve()
     tri = lire(dossier)
+    if tri is None:
+        raise Erreur("Le fichier lots.json est absent.")
     ids = _ids(tri)
     retenus: list[str] = []
     for valeur in demande.split(","):
@@ -327,7 +336,7 @@ def choisir(dossier: Path, demande: str, par: str) -> dict:
         raise Erreur("Renseignez le nom de la personne qui choisit les lots.")
 
     gabarit = importlib.resources.files("remporte") / "gabarits" / "analyse-lot.md"
-    modele = gabarit.read_text(encoding="utf-8")
+    modele = gabarit.read_bytes()
     fichiers = {}
     for identifiant in retenus:
         base = dossier / "analyse" / f"lot-{identifiant}"
@@ -342,7 +351,7 @@ def choisir(dossier: Path, demande: str, par: str) -> dict:
     }
     fichiers[dossier / _TRI] = _json(tri)
     fichiers[dossier / _TRI_ENREGISTRE] = _json(_preuve(tri))
-    _ecrire(fichiers, nouveaux=nouveaux)
+    ecritures.publier(dossier, fichiers, exclusifs=nouveaux)
     return {"choix": tri["choix"]}
 
 
@@ -432,6 +441,8 @@ def _texte_html(texte: str) -> str:
 def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
     dossier = Path(dossier).resolve()
     tri = lire(dossier)
+    if tri is None:
+        raise Erreur("Le fichier lots.json est absent.")
     texte = ["# Rapport des lots"]
     for lot in tri["lots"]:
         avis = lot["recommandation"]
@@ -446,8 +457,10 @@ def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
         texte.append("Les lots restent à choisir.")
     else:
         ids = ", ".join(choix["retenus"])
-        texte.append(f"Lots {_texte_html(ids)} choisis par {_texte_html(choix['par'])} "
-                     f"le {_texte_html(choix['date'])}.")
+        lot, accord = ("Lot", "choisi") if len(choix["retenus"]) == 1 else ("Lots", "choisis")
+        date = datetime.date.fromisoformat(choix["date"][:10])
+        texte.append(f"{lot} {_texte_html(ids)} {accord} par {_texte_html(choix['par'])} "
+                     f"le {date:%d/%m/%Y}.")
         for identifiant in choix["retenus"]:
             contenu, questions, erreurs = _analyse(dossier, identifiant)
             if contenu is not _ILLISIBLE:
@@ -464,8 +477,10 @@ def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
                 texte.extend((_texte_html(question["contexte"]), _texte_html(question["question"])))
     page = dossier / "memoire" / "rapport-lots.html"
     recueil = dossier / "memoire" / "lots-analyses.json"
-    _ecrire({page: charte.page_depuis_markdown("\n\n".join(texte)),
-             recueil: _json({"lots": analyses})})
+    ecritures.publier(dossier, {
+        page: charte.page_depuis_markdown("\n\n".join(texte)).encode("utf-8"),
+        recueil: _json({"lots": analyses}),
+    })
     if ouvrir:
         webbrowser.open(page.as_uri())
     return {"html": str(page), "analyses": str(recueil), "problemes": problemes}
@@ -474,17 +489,17 @@ def rapport(dossier: Path, *, ouvrir: bool = False) -> dict:
 def etat(dossier: Path) -> dict:
     """État de l'analyse dans le dossier et pour chacun des lots retenus."""
     resultat: dict = {"etat": "a_faire", "disponibles": [], "choix": None, "analyses": {}}
-    if not (dossier / _TRI).exists():
+    try:
+        tri = lire(dossier)
+    except Erreur:
+        return {**resultat, "message": "Analyse : vérifier et enregistrer la répartition des pièces par lot."}
+    if tri is None:
         if (dossier / "02-analyse.md").is_file():
             message = ("Analyse à refaire par lot : l'ancienne analyse unique reste lisible "
                        "comme note de travail.")
         else:
             message = "Analyse : lire le DCE et répartir les pièces par lot."
         return {**resultat, "message": message}
-    try:
-        tri = lire(dossier)
-    except Erreur:
-        return {**resultat, "message": "Analyse : vérifier et enregistrer la répartition des pièces par lot."}
     ids = _ids(tri)
     choix = tri["choix"]
     resultat.update(etat="en_cours", disponibles=ids, choix=choix)

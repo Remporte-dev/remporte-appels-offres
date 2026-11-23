@@ -94,9 +94,9 @@ def _construire_parser() -> argparse.ArgumentParser:
     pl.set_defaults(func=_cmd_lots_enregistrer)
     pl = sous_lots.add_parser("choisir", parents=[communes, avec_dossier],
                               help="enregistrer les lots retenus et préparer leur analyse")
-    pl.add_argument("--lots", required=True, metavar="LISTE",
+    pl.add_argument("--lots", default="", metavar="LISTE",
                     help="lots retenus, séparés par des virgules")
-    pl.add_argument("--par", required=True, metavar="NOM", help="nom de la personne qui choisit")
+    pl.add_argument("--par", default="", metavar="NOM", help="nom de la personne qui choisit")
     pl.set_defaults(func=_cmd_lots_choisir)
     pl = sous_lots.add_parser("rapport", parents=[communes, avec_dossier],
                               help="présenter les lots et leurs questions à l'acheteur")
@@ -128,15 +128,14 @@ def _construire_parser() -> argparse.ArgumentParser:
                              "pages, cadres Excel/Word à compléter")
     p.set_defaults(func=_cmd_formats)
 
-    p_liv = sous.add_parser("livraison", parents=[communes], help="pièces à remettre")
+    p_liv = sous.add_parser("livraison", help="pièces à remettre")
     sous_liv = p_liv.add_subparsers(dest="sous_commande", metavar="action", required=True)
     pl = sous_liv.add_parser("dossier", parents=[communes, avec_dossier],
                              help="trouver ou créer le dossier de remise")
     pl.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
     pl.set_defaults(func=_cmd_livraison_dossier)
 
-    p_cand = sous.add_parser("candidature", parents=[communes],
-                             help="formulaires DC1/DC2/DC4 officiels")
+    p_cand = sous.add_parser("candidature", help="formulaires DC1/DC2/DC4 officiels")
     sous_cand = p_cand.add_subparsers(dest="sous_commande", metavar="action",
                                       required=True)
     pc = sous_cand.add_parser("preparer", parents=[communes, avec_dossier],
@@ -414,11 +413,18 @@ def _cmd_pieces(args) -> int:
         )
         return 1
     pieces = donnees["pieces"]
+    try:
+        tri = lots.lire(dossier)
+    except espace.Erreur:
+        tri = None
+    libelles = lots.colonne_lot(tri)
     if args.json:
-        _sortie_json({"pieces": pieces})
+        _sortie_json({"pieces": [
+            {**p, "lot": libelles.get(f"dce/{p['chemin']}")} for p in pieces
+        ]})
         return 0
     lignes = [
-        [p["type"], p["lot"] or "—", p["statut"],
+        [p["type"], libelles.get(f"dce/{p['chemin']}", "—"), p["statut"],
          str(p["pages"]) if p["pages"] is not None else "—",
          _nombre(p["texte"]) if p["texte"] else "0", f"dce/{p['chemin']}"]
         for p in pieces
@@ -727,6 +733,8 @@ def _cmd_candidature_remplir(args) -> int:
     for non_produit in resultat["non_produits"]:
         print(f"{non_produit['formulaire']} → non produit "
               f"({non_produit['motif']})")
+    if "message" in resultat:
+        print(resultat["message"])
     _afficher_champs(
         "Champs non remplis (complétez candidature/valeurs.json puis "
         "relancez) :", resultat["non_remplis"])

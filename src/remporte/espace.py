@@ -73,7 +73,6 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
     importees, retirees = _importer_dce(source, racine_dce, precedentes)
     fichiers = lister_fichiers(racine_dce)
     pieces = _lister_et_convertir(fichiers, dossier)
-    _ecrire_inventaire(dossier, pieces, source)
     _copier_gabarits(dossier, forcer)
     recherche.indexer_dce(dossier)
 
@@ -88,6 +87,7 @@ def initialiser(source: Path, dossier: Path, *, forcer: bool = False) -> dict:
     (dossier / ".remporte" / "etat.json").write_text(
         json.dumps(donnees, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    _ecrire_inventaire(dossier, pieces, source)
     return donnees
 
 
@@ -167,7 +167,6 @@ def _lister_et_convertir(fichiers: list[Path], dossier: Path) -> list[dict]:
         pieces.append({
             "chemin": relatif.as_posix(),
             "type": classement.type,
-            "lot": None,
             "indice": classement.indice,
             "statut": conversion.statut,
             "pages": conversion.pages,
@@ -179,6 +178,13 @@ def _lister_et_convertir(fichiers: list[Path], dossier: Path) -> list[dict]:
 
 def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
     """Génère 01-pieces.md : tableau, pièces non converties, attendues, ligne Remporte."""
+    from remporte import lots
+
+    try:
+        tri = lots.lire(dossier)
+    except Erreur:
+        tri = None
+    libelles = lots.colonne_lot(tri)
     lignes = [
         "# Inventaire des pièces du DCE",
         "",
@@ -192,8 +198,9 @@ def _ecrire_inventaire(dossier: Path, pieces: list[dict], source: Path) -> None:
     for piece in pieces:
         pages = str(piece["pages"]) if piece["pages"] is not None else "—"
         texte = f"{piece['texte']:,}".replace(",", " ") + " car." if piece["texte"] else "—"
+        chemin = f"dce/{piece['chemin']}"
         lignes.append(
-            f"| {piece['type']} | — | `dce/{_nom(piece['chemin'])}` "
+            f"| {piece['type']} | {libelles.get(chemin, '—')} | `{_nom(chemin)}` "
             f"| {piece['statut']} | {pages} | {texte} |"
         )
     problemes = [p for p in pieces if p["statut"] != "ok"]

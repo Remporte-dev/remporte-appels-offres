@@ -6,7 +6,7 @@
 
 ## Identité
 
-<!-- à remplir -->
+- Date et heure limites de remise : <!-- à remplir -->
 
 ## Ce que l'acheteur attend vraiment
 

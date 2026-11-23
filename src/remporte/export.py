@@ -14,11 +14,11 @@ import html
 import io
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
-from remporte import cadre, charte, espace, livraison
+from remporte import cadre, charte, ecritures, espace, lots
 
 
 @dataclass
@@ -35,10 +35,12 @@ _NOMS_EXPORT = {
 }
 
 
-def _analyses_retenues(dossier: Path) -> list[_AnalyseLot]:
-    _, lots, retenus = livraison.lire_tri(dossier)
+def _analyses_retenues(dossier: Path, tri: dict | None) -> list[_AnalyseLot]:
+    if tri is None or tri["choix"] is None:
+        return []
+    intitules = {lot["id"]: lot["intitule"] for lot in tri["lots"]}
     analyses = []
-    for id_ in retenus:
+    for id_ in tri["choix"]["retenus"]:
         fichier = dossier / "analyse" / f"lot-{id_}.md"
         try:
             texte = fichier.read_text(encoding="utf-8", errors="replace")
@@ -46,7 +48,7 @@ def _analyses_retenues(dossier: Path) -> list[_AnalyseLot]:
             texte = ""
         except OSError as erreur:
             raise espace.Erreur(f"Impossible de lire l'analyse du lot {id_}.") from erreur
-        analyses.append(_AnalyseLot(f"Lot {id_} - {lots[id_]}", fichier, texte))
+        analyses.append(_AnalyseLot(f"Lot {id_} - {intitules[id_]}", fichier, texte))
     return analyses
 
 
@@ -56,11 +58,12 @@ def exporter(dossier: Path, formats: set[str]) -> dict:
     Rend les chemins des exports et, le cas échéant, un message sur le choix
     des lots. Le dossier HTML demande un plan avec sections.
     """
-    dossier = Path(dossier)
+    dossier = Path(dossier).resolve()
     if not (dossier / ".remporte").is_dir():
         raise espace.Erreur(
             f"{dossier} n'est pas un dossier de réponse (pas de .remporte/)."
         )
+    tri = lots.lire(dossier)
     sections = espace.sections_plan(dossier)
     if "html" in formats and not sections:
         raise espace.Erreur(
@@ -68,8 +71,7 @@ def exporter(dossier: Path, formats: set[str]) -> dict:
             "Complétez le plan (remporte guide plan) avant d'exporter."
         )
     avec_analyse = bool(formats & {"html", "analyse", "feuille"})
-    analyses = _analyses_retenues(dossier) if avec_analyse else []
-    _verifier_destinations(dossier, formats)
+    analyses = _analyses_retenues(dossier, tri) if avec_analyse else []
     resultat: dict[str, Path | str | None] = dict.fromkeys(_NOMS_EXPORT)
     if avec_analyse and not analyses:
         resultat["message"] = _LOTS_A_CHOISIR
@@ -83,10 +85,11 @@ def exporter(dossier: Path, formats: set[str]) -> dict:
     if "analyse" in formats:
         contenus["analyse"] = _exporter_analyse(dossier, analyses, bilan_matrice)
     if "feuille" in formats:
-        html_produit = "html" in formats or (dossier / "export" / _NOMS_EXPORT["html"]).exists()
-        texte = _feuille_de_route_markdown(dossier, sections, analyses, html_produit)
+        texte = _feuille_de_route_markdown(dossier, sections, analyses, "html" in formats)
         contenus["feuille"] = charte.page_depuis_markdown(texte, "Feuille de route").encode("utf-8")
-    resultat.update(_ecrire_exports(dossier, contenus))
+    chemins = {format_: dossier / "export" / _NOMS_EXPORT[format_] for format_ in contenus}
+    ecritures.publier(dossier, {chemin: contenus[format_] for format_, chemin in chemins.items()})
+    resultat.update(chemins)
     return resultat
 
 
@@ -416,35 +419,22 @@ def _renvoi_matrice(dossier: Path, bilan: str | None) -> str:
 def _date_limite(analyses: list[_AnalyseLot]) -> str:
     for analyse in analyses:
         identite = _contenu_section(analyse.texte, "identité")
-        for cellules in _lignes_tableau(identite):
-            libelle = _nettoyer_inline(cellules[0]).casefold().rstrip(": ")
-            if libelle == "date limite" or libelle.startswith("date limite de remise"):
-                date = _nettoyer_inline(_cellule_a(cellules, 1))
+        for ligne in identite.splitlines():
+            ligne = ligne.strip()
+            if ligne.startswith("|"):
+                cellules = _cellules(ligne)
+                libelle, valeur = cellules[0], _cellule_a(cellules, 1)
+            elif ligne.startswith("- "):
+                libelle, _, valeur = ligne[2:].partition(":")
+            else:
+                continue
+            libelle = unicodedata.normalize("NFD", _nettoyer_inline(libelle).casefold())
+            libelle = "".join(c for c in libelle if not unicodedata.combining(c))
+            if all(mot in libelle for mot in ("date", "limite", "remise")):
+                date = _nettoyer_inline(re.sub(r"\s*\[[^\]]*\]", "", valeur))
                 if date:
                     return date
     return ""
-
-
-def _avancement(dossier: Path, sections: list[dict], analyses: list[_AnalyseLot],
-                html_produit: bool) -> dict[str, str]:
-    etats = dict.fromkeys(espace.ETAPES, "à faire")
-    for etape, nom in espace.FICHIERS_ETAPES.items():
-        if etape == "analyse" or not (dossier / nom).is_file():
-            continue
-        texte = _lire_markdown(dossier / nom)
-        if espace.MARQUEUR not in texte:
-            etats[etape] = "faite"
-        elif texte != espace._gabarit(nom):
-            etats[etape] = "en cours"
-    if analyses:
-        etats["analyse"] = "faite" if all(
-            a.texte.strip() and not _RE_MARQUEUR.search(a.texte) for a in analyses
-        ) else "en cours"
-    if sections:
-        etats["redaction"] = "faite" if all(s["faite"] for s in sections) else "en cours"
-    if html_produit:
-        etats["export"] = "faite"
-    return etats
 
 
 def _feuille_de_route_markdown(dossier: Path, sections: list[dict],
@@ -457,8 +447,12 @@ def _feuille_de_route_markdown(dossier: Path, sections: list[dict],
     if not analyses:
         lignes += [_LOTS_A_CHOISIR, ""]
     lignes += ["## Avancement", "", "| Étape | État |", "|---|---|"]
-    for etape, etat in _avancement(dossier, sections, analyses, html_produit).items():
-        lignes.append(f"| {LIBELLES_ETAPES.get(etape, etape)} | {etat} |")
+    etapes = espace.etat(dossier)["etapes"]
+    if html_produit:
+        etapes["export"]["etat"] = "faite"
+    libelles = {"a_faire": "à faire", "en_cours": "en cours", "faite": "faite"}
+    for etape, bilan in etapes.items():
+        lignes.append(f"| {LIBELLES_ETAPES[etape]} | {libelles[bilan['etat']]} |")
     correspondance = _correspondance(dossier)
     lignes += ["", "## Sections du mémoire", "",
                "| N° | Section | Rédigée | Critère noté | Poids |", "|---|---|---|---|---|"]
@@ -480,35 +474,6 @@ def _feuille_de_route_markdown(dossier: Path, sections: list[dict],
         if pieces.strip():
             lignes += ["### Pièces à remettre", "", pieces]
     return "\n".join(lignes)
-
-
-def _verifier_destinations(dossier: Path, formats: set[str]) -> None:
-    for format_, nom in _NOMS_EXPORT.items():
-        cible = dossier / "export" / nom
-        if format_ in formats and cible.exists() and not cible.is_file():
-            raise espace.Erreur(f"Impossible d'enregistrer {nom} dans le dossier d'export.")
-
-
-def _ecrire_exports(dossier: Path, contenus: dict[str, bytes]) -> dict[str, Path]:
-    if not contenus:
-        return {}
-    racine = dossier / "export"
-    chemins = {format_: racine / _NOMS_EXPORT[format_] for format_ in contenus}
-    temporaires = {}
-    try:
-        racine.mkdir(parents=True, exist_ok=True)
-        for format_, contenu in contenus.items():
-            with NamedTemporaryFile(dir=racine, delete=False) as fichier:
-                temporaires[format_] = Path(fichier.name)
-                fichier.write(contenu)
-        for format_, chemin in chemins.items():
-            temporaires[format_].replace(chemin)
-    except OSError as erreur:
-        raise espace.Erreur("Impossible d'enregistrer les documents dans le dossier d'export.") from erreur
-    finally:
-        for temporaire in temporaires.values():
-            temporaire.unlink(missing_ok=True)
-    return chemins
 
 
 # -- matrice-conformite.xlsx ------------------------------------------------
