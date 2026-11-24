@@ -1,9 +1,15 @@
-"""Fabriques de pièces de test : PDF minimal en bytes, DOCX, XLSX, ODS, PPTX, ZIP."""
+"""Fabriques de pièces de test : PDF minimal en bytes, DOCX, XLSX, ODS, PPTX, ZIP,
+pièces OLE2 (.doc Word 97-2003) et accès aux fixtures."""
 
 from __future__ import annotations
 
 import zipfile
 from pathlib import Path
+
+
+def chemin_fixture(nom: str) -> Path:
+    """Chemin d'une pièce d'exemple de tests/fixtures/ (fictive, voir LISEZMOI.md)."""
+    return Path(__file__).resolve().parent / "fixtures" / nom
 
 
 # ---------------------------------------------------------------------------
@@ -174,3 +180,122 @@ def fabriquer_zip(chemin: Path, contenus: dict[str, bytes | str],
             zf.writestr(nom_zip, tampon.read_bytes())
             tampon.unlink()
     return chemin
+
+
+# ---------------------------------------------------------------------------
+# OLE2 (.doc Word 97-2003) : conteneur minimal et FIB
+# ---------------------------------------------------------------------------
+
+def ecrire_ole(chemin: Path, flux: dict[str, bytes]) -> Path:
+    """Fichier OLE2 (CDF V2) minimal, lisible par olefile : un flux par nom.
+
+    Chaque flux est complété à 4 096 octets pour rester un flux ordinaire
+    (pas de ministream). Un secteur de FAT, un de répertoire, puis les données.
+    """
+    SECTEUR = 512
+    FIN = 0xFFFFFFFE
+    LIBRE = 0xFFFFFFFF
+
+    contenu = []  # secteurs de données (après FAT et répertoire)
+    chaines: dict[str, tuple[int, int]] = {}  # nom → (début, taille)
+    for nom, donnees in flux.items():
+        donnees = donnees + b"\x00" * (-len(donnees) % 4096)
+        if len(donnees) < 4096:
+            donnees = donnees.ljust(4096, b"\x00")
+        debut = 2 + len(contenu)
+        chaines[nom] = (debut, len(donnees))
+        for rang in range(0, len(donnees), SECTEUR):
+            contenu.append(donnees[rang:rang + SECTEUR])
+
+    fat = [LIBRE] * 128
+    fat[0] = 0xFFFFFFFD  # le FAT lui-même
+    fat[1] = FIN          # le répertoire
+    for rang in range(len(contenu)):
+        fin_du_flux = (rang + 1) % 8 == 0 or rang == len(contenu) - 1
+        fat[2 + rang] = FIN if fin_du_flux else 2 + rang + 1
+
+    def entree(nom: str, type_: int, enfant: int | None = None,
+               frere: int | None = None, debut: int | None = None,
+               taille: int = 0) -> bytes:
+        nom_utf16 = nom.encode("utf-16-le") + b"\x00\x00"
+        sortie = nom_utf16.ljust(64, b"\x00")
+        sortie += len(nom_utf16).to_bytes(2, "little")
+        sortie += bytes([type_, 1])  # type (5 = racine, 2 = flux), noir
+        sortie += (0xFFFFFFFF).to_bytes(4, "little")          # frère gauche
+        sortie += (frere if frere is not None else 0xFFFFFFFF).to_bytes(4, "little")  # frère droit
+        sortie += (enfant if enfant is not None else 0xFFFFFFFF).to_bytes(4, "little")
+        sortie += b"\x00" * 16                                 # CLSID
+        sortie += b"\x00" * 4                                  # état
+        sortie += b"\x00" * 16                                 # création, modification
+        sortie += (debut if debut is not None else FIN).to_bytes(4, "little")
+        sortie += taille.to_bytes(8, "little")
+        assert len(sortie) == 128, len(sortie)
+        return sortie
+
+    noms = sorted(chaines)
+    repertoire = entree("Root Entry", 5, enfant=1)
+    for rang, nom in enumerate(noms):
+        debut, taille = chaines[nom]
+        # les flux sont les enfants de la racine, chaînés en frères droits
+        frere = rang + 2 if rang + 1 < len(noms) else None
+        repertoire += entree(nom, 2, frere=frere, debut=debut, taille=taille)
+    repertoire = repertoire.ljust(SECTEUR, b"\x00")
+
+    entete = bytearray(SECTEUR)
+    entete[0:8] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    entete[0x18:0x1A] = (0x003E).to_bytes(2, "little")
+    entete[0x1A:0x1C] = (3).to_bytes(2, "little")
+    entete[0x1C:0x1E] = (0xFFFE).to_bytes(2, "little")
+    entete[0x1E:0x20] = (9).to_bytes(2, "little")
+    entete[0x20:0x22] = (6).to_bytes(2, "little")
+    entete[0x28:0x2C] = (0).to_bytes(4, "little")   # secteurs de répertoire (0 en v3)
+    entete[0x2C:0x30] = (1).to_bytes(4, "little")   # un secteur de FAT
+    entete[0x30:0x34] = (1).to_bytes(4, "little")   # répertoire au secteur 1
+    entete[0x38:0x3C] = (4096).to_bytes(4, "little")
+    entete[0x3C:0x40] = FIN.to_bytes(4, "little")   # pas de mini-FAT
+    entete[0x40:0x44] = (0).to_bytes(4, "little")
+    entete[0x44:0x48] = FIN.to_bytes(4, "little")   # pas de DIFAT
+    entete[0x48:0x4C] = (0).to_bytes(4, "little")
+    entete[0x4C:0x50] = (0).to_bytes(4, "little")   # FAT au secteur 0
+    for rang in range(1, 109):
+        entete[0x4C + 4 * rang:0x50 + 4 * rang] = LIBRE.to_bytes(4, "little")
+
+    fat_brut = b"".join(valeur.to_bytes(4, "little") for valeur in fat)
+    chemin.write_bytes(bytes(entete) + fat_brut + repertoire + b"".join(contenu))
+    return chemin
+
+
+def fabriquer_fib_word(w_ident: int, n_fib: int, drapeaux: int = 0) -> bytes:
+    """Flux WordDocument de 4 096 octets réduit à sa signature FIB, pour tester
+    les refus (Word 6, document chiffré, signature inconnue)."""
+    fib = bytearray(4096)
+    fib[0:2] = w_ident.to_bytes(2, "little")
+    fib[2:4] = n_fib.to_bytes(2, "little")
+    fib[0x0A:0x0C] = drapeaux.to_bytes(2, "little")
+    return bytes(fib)
+
+
+def fabriquer_doc_minimal(chemin: Path, texte: str) -> Path:
+    """Document Word 97-2003 minimal et lisible : FIB, table des pièces (CLX)
+    dans le flux 1Table, texte en cp1252 à l'octet 0x800 du flux WordDocument.
+
+    Un \r dans le texte sépare deux paragraphes.
+    """
+    brut = texte.encode("cp1252")
+    fib = bytearray(4096)
+    fib[0x00:0x02] = (0xA5EC).to_bytes(2, "little")   # wIdent
+    fib[0x02:0x04] = (0x00C1).to_bytes(2, "little")   # nFib : Word 97
+    fib[0x0A:0x0C] = (0x0200).to_bytes(2, "little")   # fWhichTblStm : table 1Table
+    fib[0x4C:0x50] = len(texte).to_bytes(4, "little")  # ccpText
+    fib[0x98:0x9A] = (93).to_bytes(2, "little")        # cbRgFcLcb
+    # CLX : clxt 0x02, taille du PlcPcd, puis PlcPcd = CP 0, CP n, un PCD.
+    # fc = (0x800 × 2) | 0x40000000 : texte compressé (cp1252) à fc / 2.
+    fc = (0x800 * 2) | 0x40000000
+    plc = (0).to_bytes(4, "little") + len(texte).to_bytes(4, "little")
+    plc += (0).to_bytes(2, "little") + fc.to_bytes(4, "little") + (0).to_bytes(2, "little")
+    clx = b"\x02" + len(plc).to_bytes(4, "little") + plc
+    fc_clx = 0x9A + 33 * 8
+    fib[fc_clx:fc_clx + 4] = (0).to_bytes(4, "little")       # fcClx : début du flux 1Table
+    fib[fc_clx + 4:fc_clx + 8] = len(clx).to_bytes(4, "little")  # lcbClx : taille du CLX
+    fib[0x800:0x800 + len(brut)] = brut
+    return ecrire_ole(chemin, {"WordDocument": bytes(fib), "1Table": clx})

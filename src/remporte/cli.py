@@ -15,8 +15,8 @@ from pathlib import Path
 
 from remporte import __version__
 from remporte import (
-    cadre, candidature, charte, espace, export, formats, inventaire, lecture, livraison,
-    lots, recherche, travail,
+    cadre, candidature, charte, conversion, espace, export, formats, inventaire, lecture,
+    livraison, lots, recherche, travail,
 )
 from remporte.chemins import diagnostic_chemin_trop_long
 
@@ -135,6 +135,13 @@ def _construire_parser() -> argparse.ArgumentParser:
     pl.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
     pl.set_defaults(func=_cmd_livraison_dossier)
 
+    p = sous.add_parser("convertir", parents=[communes],
+                        help="créer une copie modifiable d'un fichier .doc ou .xls")
+    p.add_argument("fichier", metavar="FICHIER", type=Path)
+    p.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
+    p.add_argument("--sortie", metavar="CHEMIN", type=Path, help="chemin de la copie")
+    p.set_defaults(func=_cmd_convertir)
+
     p_cand = sous.add_parser("candidature", help="formulaires DC1/DC2/DC4 officiels")
     sous_cand = p_cand.add_subparsers(dest="sous_commande", metavar="action",
                                       required=True)
@@ -221,7 +228,7 @@ def _sortie_json(objet) -> None:
 
 
 def _signaler_erreur(args, message: str, code: int = 1) -> int:
-    commandes_json = {"init", "etat", "lots", "livraison", "candidature", "exporter"}
+    commandes_json = {"init", "etat", "lots", "livraison", "convertir", "candidature", "exporter"}
     if getattr(args, "json", False) and args.commande in commandes_json:
         _sortie_json({"ok": False, "erreur": message})
     else:
@@ -705,6 +712,20 @@ def _cmd_livraison_dossier(args) -> int:
         _sortie_json({"ok": True, "chemin": str(chemin)})
     else:
         print(chemin)
+    return 0
+
+
+def _cmd_convertir(args) -> int:
+    resultat = conversion.convertir(args.fichier, args.sortie, lot=args.lot)
+    if args.json:
+        _sortie_json({"ok": True, "fichier": str(resultat.fichier), "methode": resultat.methode,
+                      "pertes": resultat.pertes, "conseil": resultat.conseil})
+    else:
+        print(f"Fichier produit : {resultat.fichier}")
+        print(f"Méthode : {resultat.methode}")
+        if resultat.pertes:
+            print(f"Perdu : {resultat.pertes}")
+            print(resultat.conseil)
     return 0
 
 

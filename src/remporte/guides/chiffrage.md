@@ -18,8 +18,12 @@ oubliée, une formule cassée ou un total qui contredit l'acte d'engagement.
 
 ## Remplir
 
-1. Travaille sur une copie : `reponse/<nom du fichier>`, l'original reste dans
-   `dce/`.
+1. Travaille sur une copie dans le dossier de remise du lot
+   (`remporte livraison dossier --lot <id>`) ; l'original reste dans `dce/`.
+   Un bordereau en `.xls` se convertit d'abord avec
+   `remporte convertir "dce/<fichier>" --lot <id>` ; si la conversion est
+   simplifiée, ses formules sont perdues : recalcule chaque total et remets les
+   formules de l'acheteur (`remporte guide excel`, « Ancien format »).
 2. **Ne modifie pas la trame** : ni ligne ajoutée, supprimée ou renommée, ni
    onglet, ni formule, ni cellule verrouillée. Remplis seulement les cellules
    prévues pour le candidat.

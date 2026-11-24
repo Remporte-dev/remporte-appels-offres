@@ -15,7 +15,8 @@ Vérifie que tu peux lancer des commandes et lire/écrire les fichiers du dossie
 
 Suis `remporte guide chiffrage`. Les prix viennent de l'utilisateur : demande
 sa grille ou ses prix, tu ne fixes aucun prix toi-même. Copie dans
-`reponse/`, aucune ligne vide, trame et formules intactes, totaux recalculés,
+le dossier de remise du lot (un `.xls` passe d'abord par `remporte convertir`),
+aucune ligne vide, trame et formules intactes, totaux recalculés,
 total identique à celui de l'acte d'engagement. Rends le fichier et la liste
 des points à vérifier.
 

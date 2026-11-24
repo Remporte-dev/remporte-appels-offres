@@ -28,7 +28,7 @@ le logiciel de réponse aux appels d'offres.
 
 ## Ce que vous obtenez
 
-À partir d'un DCE (zip ou dossier : PDF, Word, Excel, OpenDocument, PowerPoint, CSV) :
+À partir d'un DCE (zip ou dossier : PDF, Word et Excel anciens ou récents, OpenDocument, PowerPoint, CSV) :
 
 | Fichier | Contenu |
 |---|---|
@@ -54,7 +54,7 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 
 ## Installation
 
-La [release 1.0.1](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v1.0.1) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v1.0.1/) restent aussi disponibles.
+La [release 1.0.2](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v1.0.2) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v1.0.2/) restent aussi disponibles.
 
 ```bash
 uv tool install --upgrade remporte
@@ -227,6 +227,7 @@ toutefois les utiliser vous-même.
 | `remporte chercher "<termes>"` | Recherche dans tout le DCE |
 | `remporte cadre [--couverture]` | Trame imposée par le cadre de réponse ; exigences non traitées |
 | `remporte formats` | Soutenance, limite de pages, cadres Excel ou Word à compléter |
+| `remporte convertir` | Copie modifiable (`.xlsx`, `.docx`) d'une pièce `.xls` ou `.doc` à remplir |
 | `remporte livraison dossier [--lot <id>]` | Trouver ou créer le dossier de remise du marché ou d'un lot |
 | `remporte candidature preparer\|remplir` | DC1, DC2, DC4 officiels, écrits dans le dossier de remise |
 | `remporte base indexer\|chercher` | Index et recherche dans les documents de l'entreprise |
