@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Callable, Collection
 from contextlib import suppress
+from itertools import count
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
@@ -25,6 +26,44 @@ def message_droits(chemin: Path, erreur: PermissionError) -> str:
     if sys.platform == "win32" and getattr(erreur, "winerror", None) in (32, 33):
         return f"Fermez {chemin.name} puis relancez."
     return f"Impossible d'écrire {chemin.name} : vérifiez les droits du dossier."
+
+
+def ecrire_copie(cible: Path, contenu: bytes) -> Path:
+    """Crée une copie et essaie le rang suivant si son nom est déjà pris."""
+    dossiers_crees: list[Path] = []
+    chemin = cible
+    try:
+        _creer_parents(cible.parent, Path(cible.anchor), dossiers_crees)
+        for rang in count(1):
+            if rang > 1:
+                chemin = cible.with_name(f"{cible.stem} ({rang}){cible.suffix}")
+            try:
+                fichier = chemin.open("xb")
+            except FileExistsError:
+                continue
+            identite = None
+            try:
+                with fichier:
+                    identite = os.fstat(fichier.fileno())
+                    fichier.write(contenu)
+                    fichier.flush()
+                    os.fsync(fichier.fileno())
+            except BaseException:
+                with suppress(OSError):
+                    if identite is None or os.path.samestat(chemin.lstat(), identite):
+                        chemin.unlink()
+                raise
+            return chemin
+    except BaseException as erreur:
+        for parent in reversed(dossiers_crees):
+            with suppress(OSError):
+                parent.rmdir()
+        if isinstance(erreur, PermissionError):
+            raise Erreur(message_droits(chemin, erreur)) from None
+        if isinstance(erreur, OSError):
+            raise Erreur(diagnostic_chemin_trop_long(erreur) or
+                         f"Impossible d'écrire le fichier {chemin.name}.") from None
+        raise
 
 
 def publier(dossier: Path, fichiers: dict[Path, bytes], *,

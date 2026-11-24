@@ -133,9 +133,9 @@ def _excel_impose(piece: dict, texte: str) -> bool:
 
 
 def _cadre_word(piece: dict) -> bool:
-    """CRT fourni en .docx : le mémoire ou les réponses vont dans le fichier
+    """CRT fourni en Word : le mémoire ou les réponses vont dans le fichier
     de l'acheteur, pas dans un document libre."""
-    return piece["type"] == "CRT" and piece["chemin"].lower().endswith(".docx")
+    return piece["type"] == "CRT" and piece["chemin"].lower().endswith((".doc", ".docx"))
 
 
 def _texte_converti(dossier: Path, chemin: str) -> str | None:

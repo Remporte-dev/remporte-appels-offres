@@ -2,7 +2,8 @@
 
 Aucune fonction ne lève vers l'appelant : `convertir` rend toujours une
 `Conversion`, même sur un fichier corrompu. Dépendances autorisées seulement :
-pypdfium2 (PDF), python-docx (DOCX), openpyxl (XLSX), odfpy (ODS/ODT).
+pypdfium2 (PDF), python-docx (DOCX), openpyxl (XLSX), odfpy (ODS/ODT),
+olefile (DOC), xlrd (XLS).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from remporte.chemins import diagnostic_chemin_trop_long
 
 FORMATS_LUS = {
     ".pdf", ".docx", ".xlsx", ".xlsm", ".ods", ".odt", ".txt", ".md", ".csv",
-    ".pptx",
+    ".pptx", ".doc", ".xls",
 }
 
 # Seuil « PDF scanné » : moins de ce nombre de caractères extraits par page.
@@ -258,8 +259,12 @@ def convertir(piece: Path) -> Conversion:
             return _convertir_pdf(piece)
         if suffixe == ".docx":
             return _convertir_docx(piece)
+        if suffixe == ".doc":
+            return _convertir_doc(piece)
         if suffixe in {".xlsx", ".xlsm"}:
             return _convertir_xlsx(piece)
+        if suffixe == ".xls":
+            return _convertir_xls(piece)
         if suffixe == ".ods":
             return _convertir_ods(piece)
         if suffixe == ".odt":
@@ -432,6 +437,147 @@ def _cellules_ligne_docx(ligne) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# DOC (olefile) — corps du document d'après la table des pièces [MS-DOC]
+# ---------------------------------------------------------------------------
+
+_DOC_FCCLX = 0x9A + 33 * 8  # paire fcClx/lcbClx dans la FIB Word 97
+
+
+def _u16(octets: bytes, decalage: int) -> int:
+    return int.from_bytes(octets[decalage:decalage + 2], "little")
+
+
+def _u32(octets: bytes, decalage: int) -> int:
+    return int.from_bytes(octets[decalage:decalage + 4], "little")
+
+
+def _convertir_doc(piece: Path) -> Conversion:
+    import olefile
+
+    try:
+        with olefile.OleFileIO(str(piece), raise_defects=olefile.DEFECT_INCORRECT) as ole:
+            if not ole.exists("WordDocument"):
+                return Conversion("", "illisible", None,
+                                  "pas un document Word (flux WordDocument absent)")
+            mot = ole.openstream("WordDocument").read()
+            if len(mot) < 4:
+                return Conversion("", "illisible", None, "fichier Word tronqué (FIB incomplète)")
+            signature, nfib = _u16(mot, 0), _u16(mot, 2)
+            if signature == 0xA5DC or (signature == 0xA5EC and nfib < 0x00C1):
+                return Conversion(
+                    "", "non_pris_en_charge", None,
+                    "format Word trop ancien (Word 6 ou 95) : enregistrez-le en .doc "
+                    "depuis Word 97 ou en .docx, puis relancez",
+                )
+            if signature != 0xA5EC:
+                return Conversion("", "illisible", None,
+                                  f"document Word non reconnu (signature {signature:#06x})")
+            drapeaux = _u16(mot, 0x0A)
+            if len(mot) >= 0x0C and drapeaux & 0x0100:
+                return Conversion("", "illisible", None,
+                                  "document protégé : mot de passe requis pour l'ouvrir")
+            if len(mot) < _DOC_FCCLX + 8:
+                return Conversion("", "illisible", None, "fichier Word tronqué (FIB incomplète)")
+            if _u16(mot, 0x98) < 34:  # nombre de paires fc/lcb dans la FIB
+                return Conversion("", "illisible", None,
+                                  "fichier Word tronqué (table fcLcb absente)")
+            nom_table = "1Table" if drapeaux & 0x0200 else "0Table"  # fWhichTblStm
+            if not ole.exists(nom_table):
+                return Conversion("", "illisible", None,
+                                  f"structure du document incomplète (flux {nom_table} absent)")
+            table = ole.openstream(nom_table).read()
+    except Exception:  # noqa: BLE001 — conteneur ou flux OLE endommagé
+        return Conversion("", "illisible", None,
+                          "fichier Word illisible (fichier tronqué ou endommagé)")
+
+    try:
+        texte_brut = _texte_doc_depuis_table(mot, table)
+    except ValueError as erreur:
+        return Conversion("", "illisible", None,
+                          f"table des pièces du document Word illisible ({erreur})")
+    texte = _nettoyer_texte_word(texte_brut)
+    if not texte:
+        return Conversion("", "vide", None, "aucun texte dans le document")
+    return Conversion(texte, "ok", None, None)
+
+
+def _texte_doc_depuis_table(mot: bytes, table: bytes) -> str:
+    debut = _u32(mot, _DOC_FCCLX)
+    fin = debut + _u32(mot, _DOC_FCCLX + 4)
+    restants = _u32(mot, 0x4C)  # ccpText : caractères du corps du document
+    if debut == fin and not restants:
+        return ""
+    if fin > len(table):
+        raise ValueError("structure CLX tronquée")
+    # La CLX commence par des Prc facultatifs, suivis d'un Pcdt.
+    position = debut
+    while position + 3 <= fin and table[position] == 0x01:
+        position += 3 + _u16(table, position + 1)
+    if position + 5 > fin or table[position] != 0x02:
+        raise ValueError("structure CLX inattendue")
+    taille = _u32(table, position + 1)
+    if taille < 16 or (taille - 4) % 12 or position + 5 + taille != fin:
+        raise ValueError("taille de la table des pièces invalide")
+    plc = table[position + 5:fin]
+    nombre = (taille - 4) // 12
+    cp = _u32(plc, 0)
+    if cp:
+        raise ValueError("première position de texte invalide")
+    morceaux: list[bytes] = []
+    for rang in range(nombre):
+        if not restants:
+            break
+        suivant = _u32(plc, 4 * (rang + 1))
+        if suivant < cp:
+            raise ValueError("positions de texte désordonnées")
+        caracteres = min(suivant - cp, restants)
+        cp = suivant
+        pcd = 4 * (nombre + 1) + 8 * rang
+        fc = _u32(plc, pcd + 2)
+        compresse = bool(fc & 0x40000000)
+        debut = fc & 0x3FFFFFFF
+        if compresse:
+            debut //= 2
+        fin = debut + caracteres * (1 if compresse else 2)
+        if fin > len(mot):
+            raise ValueError("texte tronqué")
+        brut = mot[debut:fin]
+        morceaux.append(brut.decode("cp1252", errors="replace").encode("utf-16-le")
+                        if compresse else brut)
+        restants -= caracteres
+    if restants:
+        raise ValueError("texte tronqué")
+    return b"".join(morceaux).decode("utf-16-le", errors="replace")
+
+
+_CONTROLES_WORD = str.maketrans("\x07\x0c\x0e\x1e", "\r\r\r-", "\x01\x02\x05\x08\x0b\x1f")
+_GLYPHES_PRIVES = re.compile(r"[\ue000-\uf8ff\U000f0000-\U000ffffd\U00100000-\U0010fffd]")
+
+
+def _nettoyer_texte_word(texte: str) -> str:
+    """Garde le texte visible des champs, même lorsqu'ils sont imbriqués."""
+    sortie: list[str] = []
+    champs: list[bool] = []  # vrai tant que le code du champ est lu
+    codes_ouverts = 0
+    for caractere in texte:
+        if caractere == "\x13":
+            champs.append(True)
+            codes_ouverts += 1
+        elif caractere == "\x14":
+            if champs and champs[-1]:
+                champs[-1] = False
+                codes_ouverts -= 1
+        elif caractere == "\x15":
+            if champs:
+                codes_ouverts -= champs.pop()
+        elif not codes_ouverts:
+            sortie.append(caractere)
+    visible = _GLYPHES_PRIVES.sub("", "".join(sortie).translate(_CONTROLES_WORD))
+    paragraphes = (bloc.strip() for bloc in re.split(r"[\r\n]+", visible))
+    return "\n\n".join(p for p in paragraphes if p)
+
+
+# ---------------------------------------------------------------------------
 # Tableaux markdown partagés
 # ---------------------------------------------------------------------------
 
@@ -454,7 +600,7 @@ def _tableau_vers_md(lignes: list[list[str]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# XLSX / ODS — une section « ## Feuille <nom> » par feuille
+# XLSX / XLS / ODS — une section « ## Feuille <nom> » par feuille
 # ---------------------------------------------------------------------------
 
 def _convertir_xlsx(piece: Path) -> Conversion:
@@ -462,31 +608,64 @@ def _convertir_xlsx(piece: Path) -> Conversion:
 
     # data_only=True : les formules non évaluées donnent leur valeur en cache.
     classeur = load_workbook(str(piece), read_only=True, data_only=True)
-    restantes = _MAX_CELLULES
     try:
-        sections: list[str] = []
-        for feuille in classeur.worksheets:
-            if restantes <= 0:
-                break
-            lignes: list[list[str]] = []
-            for ligne in feuille.iter_rows(values_only=True):
-                restantes -= max(1, len(ligne))
-                if restantes < 0:
-                    break
-                cellules = [
-                    "" if valeur is None else str(valeur)
-                    for valeur in ligne
-                ]
-                while cellules and not cellules[-1].strip():
-                    cellules.pop()
-                if any(cellule.strip() for cellule in cellules):
-                    lignes.append([cellule.strip() for cellule in cellules])
-            if lignes:
-                sections.append(
-                    f"## Feuille {feuille.title}\n\n" + _tableau_vers_md(lignes)
-                )
+        feuilles = ((f.title, f.iter_rows(values_only=True)) for f in classeur.worksheets)
+        return _tableur_vers_md(piece, feuilles, lambda v: "" if v is None else str(v).strip())
     finally:
         classeur.close()
+
+
+def valeur_xls(cellule, datemode: int):
+    """Valeur typée d'une cellule BIFF, calculée d'après le cache pour une formule."""
+    import xlrd
+
+    if cellule.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
+        return None
+    if cellule.ctype == xlrd.XL_CELL_DATE:
+        return xlrd.xldate_as_datetime(cellule.value, datemode)
+    if cellule.ctype == xlrd.XL_CELL_BOOLEAN:
+        return bool(cellule.value)
+    if cellule.ctype == xlrd.XL_CELL_ERROR:
+        return xlrd.error_text_from_code.get(cellule.value, "#VALUE!")
+    valeur = cellule.value
+    return int(valeur) if isinstance(valeur, float) and valeur.is_integer() else valeur
+
+
+def _convertir_xls(piece: Path) -> Conversion:
+    import xlrd
+
+    try:
+        with xlrd.open_workbook(str(piece), logfile=io.StringIO()) as classeur:
+            feuilles = ((f.name, f.get_rows()) for f in classeur.sheets())
+
+            def texte_cellule(cellule) -> str:
+                valeur = valeur_xls(cellule, classeur.datemode)
+                return "" if valeur is None else str(valeur).strip()
+
+            return _tableur_vers_md(piece, feuilles, texte_cellule)
+    except Exception as erreur:  # noqa: BLE001 — classeur endommagé
+        motif = diagnostic_chemin_trop_long(erreur) or "classeur Excel illisible"
+        return Conversion("", "illisible", None, motif)
+
+
+def _tableur_vers_md(piece: Path, feuilles, texte_cellule) -> Conversion:
+    restantes = _MAX_CELLULES
+    sections: list[str] = []
+    for nom, lignes_brutes in feuilles:
+        if restantes <= 0:
+            break
+        lignes: list[list[str]] = []
+        for ligne in lignes_brutes:
+            restantes -= max(1, len(ligne))
+            if restantes < 0:
+                break
+            cellules = [texte_cellule(valeur) for valeur in ligne]
+            while cellules and not cellules[-1].strip():
+                cellules.pop()
+            if cellules:
+                lignes.append(cellules)
+        if lignes:
+            sections.append(f"## Feuille {nom}\n\n" + _tableau_vers_md(lignes))
     if restantes < 0:
         _avertir(f"{piece} : lecture arrêtée à {_MAX_CELLULES} cellules")
         sections.append(_TRONQUE.format(motif=f"plus de {_MAX_CELLULES} cellules"))
