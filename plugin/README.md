@@ -12,11 +12,10 @@ cet environnement et ne sont pas forcément présents sur votre ordinateur.
 
 ## Exemples
 
-- Claude Code : `/remporte:init` prépare l'espace et la fiche entreprise. Codex peut invoquer
-  `$remporte:init`.
-- Claude Code : `/remporte:nouvel-ao ~/Téléchargements/DCE-voirie.zip` lance le parcours du DCE,
-  avec les arrêts de validation. Codex peut invoquer `$remporte:nouvel-ao` ou répondre à une demande
-  naturelle.
+- « Prépare Remporte pour mon entreprise » : prépare l'espace de travail et la fiche entreprise.
+- « Analyse ce DCE : ~/Téléchargements/DCE-voirie.zip » : lit les pièces, présente les lots et la
+  date de remise, puis analyse les lots que vous retenez, avec les questions à poser à l'acheteur.
+- « Je prends le lot 3 » ou « reprends le dossier voirie » : poursuit la réponse là où elle en est.
 - « Vérifie que chaque exigence du cadre de réponse est traitée dans le mémoire » : liste les
   exigences numérotées qui ne sont pas encore couvertes.
 - « Remplis le DC1 et le DC2 pour ce marché » : remplit les formulaires officiels à partir de la
@@ -25,7 +24,7 @@ cet environnement et ne sont pas forcément présents sur votre ordinateur.
 ## Dépendance et fichiers
 
 `remporte` est un outil en ligne de commande externe au plugin. Vérifiez sa présence avec
-`remporte --version`. S'il manque, `$remporte:init` ou `/remporte:init` propose `uv tool install remporte`
+`remporte --version`. S'il manque, la mise en route propose de l'installer
 après accord. Installer le plugin n'installe pas le CLI.
 
 Les DCE et les documents sont lus depuis les fichiers accessibles à l'environnement choisi.
@@ -37,11 +36,12 @@ dans l'application Remporte : [données et confidentialité](https://github.com/
 
 ## Contenu
 
-Le plugin fournit treize skills : `init`, `nouvel-ao`, `repondre-ao` (qui oriente vers la bonne
-méthode selon le livrable), `lecture-dce`, `redaction-section`, `relecture-ao`,
+Le plugin fournit douze skills : `init`, `repondre-ao` (la porte d'entrée : nouveau DCE ou
+reprise d'un dossier), `lecture-dce`, `redaction-section`, `relecture-ao`,
 `memoire-technique`, `cadre-reponse`, `fichier-impose`, `chiffrage`, `visuels`, `soutenance` et
-`candidature`. Il fournit aussi trois sous-agents Claude : `lecteur-dce`,
-`redacteur-section`, `relecteur`. Les procédures métier partagées se trouvent dans
+`candidature`. Il fournit aussi quatre sous-agents Claude : `lecteur-dce`,
+`redacteur-section`, `relecteur` (mémoire ou étape) et `controleur-coherence` (montants,
+délais, moyens et engagements recoupés entre toutes les pièces). Les procédures métier partagées se trouvent dans
 [references/](references/lecture-dce.md). Le plugin ne contient ni hook ni serveur MCP.
 
 ## Clé API Remporte

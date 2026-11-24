@@ -11,45 +11,86 @@ combler) et `matrice-conformite.xlsx` (exigences du CRT ou sections du plan).
 from __future__ import annotations
 
 import html
+import io
 import json
 import re
+import unicodedata
+from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
-from remporte import cadre, charte, espace
+from remporte import cadre, charte, ecritures, espace, lots
+
+
+@dataclass
+class _AnalyseLot:
+    titre: str
+    fichier: Path
+    texte: str
+
+
+_LOTS_A_CHOISIR = "Choisissez les lots auxquels vous souhaitez répondre pour préparer leur analyse."
+_NOMS_EXPORT = {
+    "html": "dossier.html", "analyse": "analyse.html",
+    "feuille": "feuille-de-route.html", "matrice": "matrice-conformite.xlsx",
+}
+
+
+def _analyses_retenues(dossier: Path, tri: dict | None) -> list[_AnalyseLot]:
+    if tri is None or tri["choix"] is None:
+        return []
+    intitules = {lot["id"]: lot["intitule"] for lot in tri["lots"]}
+    analyses = []
+    for id_ in tri["choix"]["retenus"]:
+        fichier = dossier / "analyse" / f"lot-{id_}.md"
+        try:
+            texte = fichier.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            texte = ""
+        except OSError as erreur:
+            raise espace.Erreur(f"Impossible de lire l'analyse du lot {id_}.") from erreur
+        analyses.append(_AnalyseLot(f"Lot {id_} - {intitules[id_]}", fichier, texte))
+    return analyses
 
 
 def exporter(dossier: Path, formats: set[str]) -> dict:
     """Exporte les formats demandés.
 
-    Rend un dict {html, analyse, feuille, matrice} → chemin ou None. Le
-    dossier demande un plan avec sections ; les documents de
-    travail se contentent des fichiers d'analyse déjà remplis.
+    Rend les chemins des exports et, le cas échéant, un message sur le choix
+    des lots. Le dossier HTML demande un plan avec sections.
     """
-    dossier = Path(dossier)
+    dossier = Path(dossier).resolve()
     if not (dossier / ".remporte").is_dir():
         raise espace.Erreur(
             f"{dossier} n'est pas un dossier de réponse (pas de .remporte/)."
         )
+    tri = lots.lire(dossier)
     sections = espace.sections_plan(dossier)
     if "html" in formats and not sections:
         raise espace.Erreur(
             "04-plan.md ne liste aucune section au format `- [ ] NN — Titre`. "
             "Complétez le plan (remporte guide plan) avant d'exporter."
         )
-    resultat: dict[str, Path | None] = {
-        "html": None, "analyse": None, "feuille": None,
-        "matrice": None,
-    }
-    if "html" in formats:
-        resultat["html"] = _exporter_html(dossier, sections)
+    avec_analyse = bool(formats & {"html", "analyse", "feuille"})
+    analyses = _analyses_retenues(dossier, tri) if avec_analyse else []
+    resultat: dict[str, Path | str | None] = dict.fromkeys(_NOMS_EXPORT)
+    if avec_analyse and not analyses:
+        resultat["message"] = _LOTS_A_CHOISIR
     # La matrice passe avant l'analyse, qui renvoie vers elle avec son bilan.
+    contenus: dict[str, bytes] = {}
     bilan_matrice = None
     if "matrice" in formats:
-        resultat["matrice"], bilan_matrice = _exporter_matrice(dossier, sections)
+        contenus["matrice"], bilan_matrice = _exporter_matrice(dossier, sections)
+    if "html" in formats:
+        contenus["html"] = _exporter_html(dossier, sections, analyses)
     if "analyse" in formats:
-        resultat["analyse"] = _exporter_analyse(dossier, bilan_matrice)
+        contenus["analyse"] = _exporter_analyse(dossier, analyses, bilan_matrice)
     if "feuille" in formats:
-        resultat["feuille"] = _exporter_feuille_de_route(dossier, sections)
+        texte = _feuille_de_route_markdown(dossier, sections, analyses, "html" in formats)
+        contenus["feuille"] = charte.page_depuis_markdown(texte, "Feuille de route").encode("utf-8")
+    chemins = {format_: dossier / "export" / _NOMS_EXPORT[format_] for format_ in contenus}
+    ecritures.publier(dossier, {chemin: contenus[format_] for format_, chemin in chemins.items()})
+    resultat.update(chemins)
     return resultat
 
 
@@ -71,11 +112,8 @@ def _texte_pour_acheteur(texte: str) -> str:
 _RE_A_COMPLETER = re.compile(r"\[\s*à compléter\s*:([^\]]*)\]")
 
 
-def _exporter_html(dossier: Path, sections: list[dict]) -> Path:
-    analyse = "\n\n".join(
-        _lire_markdown(dossier / nom)
-        for nom in ("02-analyse.md", "03-go-no-go.md")
-    )
+def _exporter_html(dossier: Path, sections: list[dict], analyses: list[_AnalyseLot]) -> bytes:
+    analyse = _analyse_markdown(dossier, analyses)
     onglets = [("Analyse", _vers_html(analyse))]
     parties_memoire: list[str] = []
     for section in sections:
@@ -91,11 +129,8 @@ def _exporter_html(dossier: Path, sections: list[dict]) -> Path:
             _vers_html(_texte_pour_acheteur(fichier.read_text(encoding="utf-8")))
         )
     onglets.append(("Mémoire", "\n".join(parties_memoire)))
-    page = _page_html(onglets, _releve_a_completer(dossier, sections))
-    chemin = dossier / "export" / "dossier.html"
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    chemin.write_text(page, encoding="utf-8")
-    return chemin
+    page = _page_html(onglets, _releve_a_completer(dossier, sections, analyses))
+    return page.encode("utf-8")
 
 
 def _lire_markdown(chemin: Path) -> str:
@@ -109,28 +144,28 @@ def _vers_html(texte: str) -> str:
 
 
 def _a_completer_par_fichier(
-        dossier: Path, sections: list[dict]) -> list[tuple[str, list[str]]]:
+        dossier: Path, sections: list[dict], analyses: list[_AnalyseLot]
+        ) -> list[tuple[str, list[str]]]:
     """Marqueurs `[à compléter : …]` relevés fichier par fichier, dans l'ordre."""
-    fichiers = [dossier / "02-analyse.md", dossier / "03-go-no-go.md"]
+    fichiers = [dossier / "03-go-no-go.md"]
     fichiers += [
         dossier / "sections" / s["fichier"] for s in sections if s["fichier"]
     ]
+    textes = [(a.fichier.name, a.texte) for a in analyses]
+    textes += [(f.name, _lire_markdown(f)) for f in fichiers if f.exists()]
     groupes: list[tuple[str, list[str]]] = []
-    for fichier in fichiers:
-        if not fichier.exists():
-            continue
-        texte = fichier.read_text(encoding="utf-8", errors="replace")
+    for nom, texte in textes:
         demandes = [
             t.group(1).strip() for t in _RE_A_COMPLETER.finditer(_sans_notes(texte))
             if t.group(1).strip() not in {"", "…", "..."}
         ]
         if demandes:
-            groupes.append((fichier.name, demandes))
+            groupes.append((nom, demandes))
     return groupes
 
 
-def _releve_a_completer(dossier: Path, sections: list[dict]) -> list[str]:
-    groupes = _a_completer_par_fichier(dossier, sections)
+def _releve_a_completer(dossier: Path, sections: list[dict], analyses: list[_AnalyseLot]) -> list[str]:
+    groupes = _a_completer_par_fichier(dossier, sections, analyses)
     return [
         f"{nom} : [à compléter : {demande}]"
         for nom, demandes in groupes for demande in demandes
@@ -227,7 +262,7 @@ def _page_html(onglets: list[tuple[str, str]], releve: list[str]) -> str:
 # Livrables de travail — analyse.html, feuille-de-route.html, matrice XLSX
 # ---------------------------------------------------------------------------
 
-_RE_TITRE_H2 = re.compile(r"^##\s+(.+?)\s*$", re.M)
+_RE_TITRE_H2 = re.compile(r"^##[ \t]+(.+?)[ \t]*$", re.M)
 _RE_MARQUEUR = re.compile(r"<!--\s*à remplir\s*-->")
 
 LIBELLES_ETAPES = {
@@ -281,10 +316,11 @@ def _lignes_tableau(texte: str) -> list[list[str]]:
     return [_cellules(l) for l in texte.splitlines() if l.lstrip().startswith("|")]
 
 
-def _contenu_section(texte: str, prefixe: str) -> str:
-    """Contenu de la première section `##` dont le titre commence par `prefixe`."""
+def _contenu_section(texte: str, rubrique: str) -> str:
+    """Contenu de la rubrique, indépendamment de la casse et du deux-points final."""
+    rubrique = lots.normaliser_titre(rubrique)
     for titre, contenu in sections_h2(texte):
-        if titre.casefold().startswith(prefixe):
+        if lots.normaliser_titre(titre) == rubrique:
             return contenu
     return ""
 
@@ -338,17 +374,42 @@ def _sans_notes(texte: str) -> str:
     return _RE_MARQUEUR.sub("", "\n".join(lignes))
 
 
-def _exporter_analyse(dossier: Path, bilan_matrice: str | None = None) -> Path:
+def _analyse_markdown(dossier: Path, analyses: list[_AnalyseLot],
+                      titre_page: str | None = None) -> str:
+    parties = []
+    for analyse in analyses:
+        rubriques = sections_h2(_sans_notes(analyse.texte))
+        blocs = [f"## {analyse.titre}"]
+        for titre, contenu in rubriques:
+            if titre:
+                blocs.append(f"### {titre}")
+            else:
+                contenu = re.sub(r"\A# [^\n]*\n?", "", contenu).strip()
+            if contenu:
+                blocs.append(contenu)
+        if len(blocs) == 1:
+            blocs.append("Analyse en cours.")
+        parties.append("\n\n".join(blocs))
+    if not parties:
+        parties.append(_LOTS_A_CHOISIR)
+    decision = _sans_notes(_lire_markdown(dossier / "03-go-no-go.md"))
+    if titre_page:
+        parties.insert(0, f"# {titre_page}")
+        decision = re.sub(r"^#[ \t]+", "## ", decision, count=1, flags=re.M)
+    parties.append(decision)
+    return "\n\n".join(parties)
+
+
+def _exporter_analyse(dossier: Path, analyses: list[_AnalyseLot],
+                      bilan_matrice: str | None = None) -> bytes:
     """analyse.html : l'analyse du DCE et le go/no-go, tels que rédigés, puis
     le renvoi vers la matrice de conformité quand elle existe."""
-    morceaux = [
-        _sans_notes(_lire_markdown(dossier / nom))
-        for nom in ("02-analyse.md", "03-go-no-go.md")
-    ]
+    morceaux = [_analyse_markdown(dossier, analyses, titre_page="Analyse du dossier")]
     renvoi = _renvoi_matrice(dossier, bilan_matrice)
     if renvoi:
         morceaux.append(renvoi)
-    return _ecrire_page(dossier, "analyse.html", "\n\n".join(morceaux), "Analyse du DCE")
+    page = charte.page_depuis_markdown("\n\n".join(morceaux))
+    return page.encode("utf-8")
 
 
 def _renvoi_matrice(dossier: Path, bilan: str | None) -> str:
@@ -362,26 +423,59 @@ def _renvoi_matrice(dossier: Path, bilan: str | None) -> str:
     return "## Matrice de conformité\n\n" + texte
 
 
-def _date_limite(dossier: Path) -> str:
-    """Valeur de la ligne « Date limite de remise » de 02-analyse.md, s'il y en a une."""
-    texte = _lire_markdown(dossier / "02-analyse.md")
-    for cellules in _lignes_tableau(texte):
-        if cellules and cellules[0].casefold().startswith("date limite"):
-            return _nettoyer_inline(_cellule_a(cellules, 1))
+def _hors_parentheses(texte: str) -> Iterator[tuple[int, str]]:
+    profondeur = 0
+    for position, caractere in enumerate(texte):
+        if caractere == "(":
+            profondeur += 1
+        elif caractere == ")" and profondeur:
+            profondeur -= 1
+        elif profondeur == 0:
+            yield position, caractere
+
+
+def _date_limite(analyses: list[_AnalyseLot]) -> str:
+    for analyse in analyses:
+        identite = _contenu_section(analyse.texte, "identité")
+        for ligne in identite.splitlines():
+            ligne = ligne.strip()
+            if ligne.startswith("|"):
+                cellules = _cellules(ligne)
+                libelle, valeur = cellules[0], _cellule_a(cellules, 1)
+            else:
+                ligne = re.sub(r"^[-*]\s+", "", ligne)
+                separateur = next((i for i, c in _hors_parentheses(ligne) if c == ":"), None)
+                if separateur is None:
+                    continue
+                libelle, valeur = ligne[:separateur], ligne[separateur + 1:]
+            libelle = _nettoyer_inline("".join(c for _, c in _hors_parentheses(libelle))).casefold()
+            libelle = unicodedata.normalize("NFD", libelle)
+            libelle = "".join(c for c in libelle if not unicodedata.combining(c))
+            if "date" in libelle and "limite" in libelle and (
+                "remise" in libelle or "reception" in libelle
+            ):
+                date = _nettoyer_inline(re.sub(r"\s*\[[^\]]*\](?:\([^)]*\))?", "", valeur))
+                if date:
+                    return date
     return ""
 
 
-def _feuille_de_route_markdown(dossier: Path, sections: list[dict]) -> str:
+def _feuille_de_route_markdown(dossier: Path, sections: list[dict],
+                              analyses: list[_AnalyseLot], html_produit: bool) -> str:
     """La feuille de route rédigée en markdown, à partir de l'état du dossier."""
     lignes = ["# Feuille de route", ""]
-    date = _date_limite(dossier)
+    date = _date_limite(analyses)
     if date:
         lignes += [f"**Date limite de remise :** {date}", ""]
-    etat = espace.etat(dossier)
-    libelles = {"faite": "faite", "en_cours": "en cours", "a_faire": "à faire"}
+    if not analyses:
+        lignes += [_LOTS_A_CHOISIR, ""]
     lignes += ["## Avancement", "", "| Étape | État |", "|---|---|"]
-    for etape, info in etat["etapes"].items():
-        lignes.append(f"| {LIBELLES_ETAPES.get(etape, etape)} | {libelles[info['etat']]} |")
+    etapes = espace.etat(dossier)["etapes"]
+    if html_produit:
+        etapes["export"]["etat"] = "faite"
+    libelles = {"a_faire": "à faire", "en_cours": "en cours", "faite": "faite"}
+    for etape, bilan in etapes.items():
+        lignes.append(f"| {LIBELLES_ETAPES[etape]} | {libelles[bilan['etat']]} |")
     correspondance = _correspondance(dossier)
     lignes += ["", "## Sections du mémoire", "",
                "| N° | Section | Rédigée | Critère noté | Poids |", "|---|---|---|---|---|"]
@@ -391,28 +485,18 @@ def _feuille_de_route_markdown(dossier: Path, sections: list[dict]) -> str:
             f"| {section['numero']} | {section['titre']} | "
             f"{'oui' if section['faite'] else 'non'} | {critere} | {poids} |"
         )
-    groupes = _a_completer_par_fichier(dossier, sections)
+    groupes = _a_completer_par_fichier(dossier, sections, analyses)
     lignes += ["", "## À compléter", ""]
     if not groupes:
         lignes.append("Rien à compléter.")
     for nom, demandes in groupes:
         lignes += [f"**{nom}**", ""] + [f"- {demande}" for demande in demandes] + [""]
-    pieces = _contenu_section(_lire_markdown(dossier / "02-analyse.md"), "pièces à remettre")
-    if pieces:
-        lignes += ["", "## Pièces à remettre", "", _sans_notes(pieces)]
+    for analyse in analyses:
+        pieces = _sans_notes(_contenu_section(analyse.texte, "pièces à remettre et formes imposées"))
+        lignes += ["", f"## {analyse.titre}", ""]
+        if pieces.strip():
+            lignes += ["### Pièces à remettre", "", pieces]
     return "\n".join(lignes)
-
-
-def _exporter_feuille_de_route(dossier: Path, sections: list[dict]) -> Path:
-    texte = _feuille_de_route_markdown(dossier, sections)
-    return _ecrire_page(dossier, "feuille-de-route.html", texte, "Feuille de route")
-
-
-def _ecrire_page(dossier: Path, nom: str, texte: str, titre: str) -> Path:
-    chemin = dossier / "export" / nom
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    chemin.write_text(charte.page_depuis_markdown(texte, titre), encoding="utf-8")
-    return chemin
 
 
 # -- matrice-conformite.xlsx ------------------------------------------------
@@ -433,10 +517,10 @@ def _cadre_du_dossier(dossier: Path) -> dict | None:
     return cadre.extraire_cadre(dossier / "dce" / candidats[0]["chemin"])
 
 
-def _exporter_matrice(dossier: Path, sections: list[dict]) -> tuple[Path, str]:
+def _exporter_matrice(dossier: Path, sections: list[dict]) -> tuple[bytes, str]:
     """matrice-conformite.xlsx : une ligne par exigence du CRT, sinon par section.
 
-    Rend le chemin et le bilan en une phrase, repris par analyse.html.
+    Rend le classeur et le bilan en une phrase, repris par analyse.html.
     """
     from openpyxl import Workbook
 
@@ -462,10 +546,9 @@ def _exporter_matrice(dossier: Path, sections: list[dict]) -> tuple[Path, str]:
                  + (f"dont {restantes} encore à rédiger" if restantes else "toutes rédigées"))
     feuille.freeze_panes = "A2"
     feuille.auto_filter.ref = feuille.dimensions
-    chemin = dossier / "export" / "matrice-conformite.xlsx"
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    classeur.save(str(chemin))
-    return chemin, bilan
+    tampon = io.BytesIO()
+    classeur.save(tampon)
+    return tampon.getvalue(), bilan
 
 
 def _pluriel(nombre: int, mot: str) -> str:

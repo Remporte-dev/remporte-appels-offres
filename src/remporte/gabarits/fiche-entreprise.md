@@ -1,6 +1,6 @@
 # Fiche entreprise
 
-> Créée par `/remporte:init`, lue par tous les agents (`remporte fiche`).
+> Créée à la mise en route de Remporte, lue par tous les agents (`remporte fiche`).
 > Une information sans source reste `[à compléter : …]`. Mise à jour à chaque
 > changement (exercice clos, nouvelle référence, nouvelle certification).
 

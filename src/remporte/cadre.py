@@ -1,7 +1,6 @@
 """Extraction déterministe d'un cadre de réponse depuis la pièce de l'acheteur.
 
-Port de `remporte-pi/apps/pipe/src/remporte_ai/ingestion/response_frame.py`
-(lu sur origin/main). Deux voies : les paragraphes d'un style dédié du DOCX
+Deux voies : les paragraphes d'un style dédié du DOCX
 (trame bien faite), puis les phrases « le candidat … » dans le texte converti.
 En dessous de trois points, le cadre est jugé inexploitable : origine « aucune ».
 """

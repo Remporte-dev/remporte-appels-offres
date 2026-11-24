@@ -2,9 +2,9 @@
 
 `preparer` crée `candidature/valeurs.json` (une entrée par formulaire, chaque
 champ à null) et ne remplace jamais un fichier existant. `remplir` lit ces
-valeurs et écrit `candidature/DC1.docx`, `DC2.docx` et `DC4.docx` (ce dernier
-seulement si une sous-traitance est déclarée), en écrivant dans le XML des
-formulaires officiels vierges de `cerfa/` :
+valeurs et écrit `DC1.docx`, `DC2.docx` et `DC4.docx` dans le dossier de remise
+(DC4 seulement si une sous-traitance est déclarée), en écrivant dans le XML
+des formulaires officiels vierges de `cerfa/` :
 
 - texte : la valeur est ajoutée à la fin du paragraphe repéré par l'ancre de
   la carte (les libellés Cerfa sont coupés entre plusieurs runs : on ne
@@ -29,7 +29,8 @@ from pathlib import Path
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
 
-from remporte import espace
+from remporte import ecritures, espace, livraison
+from remporte.chemins import diagnostic_chemin_trop_long
 
 _RE_PARAGRAPHE = re.compile(r"<w:p[ >].*?</w:p>", re.S)
 _RE_TEXTE = re.compile(r"(?P<ouvrant><w:t[^>]*>)(?P<texte>[^<]*)(?P<fermant></w:t>)")
@@ -42,6 +43,10 @@ _RE_BLOC_DESSINE = re.compile(r"<mc:AlternateContent>.*?</mc:AlternateContent>",
 # encadrés) en diffèrent.
 _GEOMETRIE_CASE_DC4 = 'coordsize="147955,147955"'
 _SEPARATEUR = "  "  # double espace entre le libellé et la valeur ajoutée
+_CONFIRMER = ("{nom} existe déjà dans le dossier de remise : "
+              "il a peut-être été retouché. Confirmez le remplacement.")
+_VALEURS_EXISTANTES = ("{chemin} existe déjà. Complétez-le tel quel ; il n'est jamais "
+                      "remplacé par l'outil.")
 
 
 def cartes() -> dict:
@@ -60,11 +65,6 @@ def preparer(dossier: Path) -> Path:
             "Lancez `remporte init <DCE>` d'abord."
         )
     cible = dossier / "candidature" / "valeurs.json"
-    if cible.exists():
-        raise espace.Erreur(
-            f"{cible} existe déjà. Complétez-le tel quel ; il n'est jamais "
-            "remplacé par l'outil."
-        )
     valeurs = {
         formulaire: {
             "fichier": info["fichier"],
@@ -82,25 +82,37 @@ def preparer(dossier: Path) -> Path:
         }
         for formulaire, info in cartes()["formulaires"].items()
     }
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    cible.write_text(
-        json.dumps(valeurs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    contenu = (json.dumps(valeurs, ensure_ascii=False, indent=2, allow_nan=False)
+               + "\n").encode("utf-8")
+    racine = dossier.resolve()
+    destination = racine / cible.relative_to(dossier)
+    ecritures.publier(racine, {destination: contenu}, exclusifs=(destination,),
+                      conflit=lambda _: _VALEURS_EXISTANTES.format(chemin=cible))
     return cible
 
 
-def remplir(dossier: Path) -> dict:
-    """Écrit les formulaires renseignés dans `candidature/`. Rend les chemins
+def remplir(dossier: Path, lot: str | None = None, *, remplacer: bool = False) -> dict:
+    """Écrit les formulaires renseignés dans le dossier de remise. Rend les chemins
     produits, les champs non remplis, les optionnels vides, les champs à porter
     à la main et les anomalies (ancre ou case introuvable)."""
-    dossier = Path(dossier)
+    dossier = Path(dossier).resolve()
+    try:
+        remise, lot_remise = livraison.destination_lot(dossier, lot)
+    except OSError as erreur:
+        message = diagnostic_chemin_trop_long(erreur) or "Le dossier de remise est inaccessible."
+        raise espace.Erreur(message) from erreur
     chemin_valeurs = dossier / "candidature" / "valeurs.json"
     if not chemin_valeurs.exists():
         raise espace.Erreur(
             f"{chemin_valeurs} est absent : lancez `remporte candidature "
             "preparer` d'abord, complétez valeurs.json, puis relancez."
         )
-    valeurs = json.loads(chemin_valeurs.read_text(encoding="utf-8"))
+    try:
+        valeurs = json.loads(chemin_valeurs.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as erreur:
+        raise espace.Erreur("Les valeurs de candidature sont illisibles.") from erreur
+    if not isinstance(valeurs, dict):
+        raise espace.Erreur("Les valeurs de candidature sont illisibles.")
     resultat: dict = {
         "produits": [],
         "non_produits": [],
@@ -109,18 +121,45 @@ def remplir(dossier: Path) -> dict:
         "manuels": {},
         "anomalies": {},
     }
-    for formulaire, info in cartes()["formulaires"].items():
-        renseigne = valeurs.get(formulaire, {}).get("champs", {})
+    formulaires = cartes()["formulaires"]
+    documents = {}
+    for formulaire, info in formulaires.items():
+        cible = remise / f"{formulaire}.docx"
+        valeurs_formulaire = valeurs.get(formulaire, {})
+        renseigne = valeurs_formulaire.get("champs", {}) if isinstance(valeurs_formulaire, dict) else None
+        if not isinstance(renseigne, dict) or any(not isinstance(c, dict) for c in renseigne.values()):
+            raise espace.Erreur(f"Les valeurs de candidature du {formulaire} sont illisibles.")
+        _valider_valeurs(formulaire, info, renseigne)
         if formulaire == "DC4" and renseigne.get("sous_traitance", {}).get(
             "valeur"
         ) is not True:
             resultat["non_produits"].append({
                 "formulaire": formulaire,
-                "motif": "pas de sous-traitance déclarée "
-                         "(champ sous_traitance de valeurs.json)",
+                "motif": "pas de sous-traitance déclarée",
             })
+            if cible.is_file() or cible.is_symlink():
+                resultat["message"] = ("DC4.docx est encore dans le dossier de remise "
+                                       "alors qu'aucune sous-traitance n'est déclarée.")
             continue
-        _remplir_formulaire(dossier, formulaire, info, renseigne, resultat)
+        if not remplacer and (cible.exists() or cible.is_symlink()):
+            raise espace.Erreur(_CONFIRMER.format(nom=cible.name))
+        xml = _remplir_formulaire(formulaire, info, renseigne, resultat)
+        if formulaire == "DC1" and lot_remise is not None:
+            valeur = renseigne.get("lot_numero", {}).get("valeur")
+            numero = "" if valeur is None else str(valeur)
+            if numero.strip() and lot_remise not in numero:
+                resultat["anomalies"].setdefault("DC1", {})["Lot visé"] = (
+                    f"Le DC1 désigne « {numero} » alors qu'il est rangé "
+                    f"dans le dossier du lot {lot_remise}."
+                )
+        documents[cible] = _docx(info["fichier"], xml)
+        resultat["produits"].append({
+            "formulaire": formulaire,
+            "chemin": cible.relative_to(dossier).as_posix(),
+        })
+
+    ecritures.publier(dossier, documents, exclusifs=() if remplacer else documents,
+                      conflit=lambda chemin: _CONFIRMER.format(nom=chemin.name))
     return resultat
 
 
@@ -128,8 +167,21 @@ def remplir(dossier: Path) -> dict:
 # Remplissage d'un formulaire
 # ---------------------------------------------------------------------------
 
-def _remplir_formulaire(dossier: Path, formulaire: str, info: dict,
-                        renseigne: dict, resultat: dict) -> None:
+def _valider_valeurs(formulaire: str, info: dict, renseigne: dict) -> None:
+    libelles = {champ["var"]: champ["label"] for champ in info["champs"]}
+    for var, champ in renseigne.items():
+        valeur = champ.get("valeur")
+        if valeur is None or isinstance(valeur, (str, int, float, bool)):
+            continue
+        libelle = libelles.get(var, "Champ de candidature")
+        if formulaire == "DC1" and var == "lot_numero":
+            libelle = "N° et intitulé du lot visé"
+        if formulaire == "DC4" and var == "sous_traitance":
+            libelle = "Déclarez-vous un sous-traitant ?"
+        raise espace.Erreur(f"{formulaire}, {libelle} : valeur attendue : un texte.")
+
+
+def _remplir_formulaire(formulaire: str, info: dict, renseigne: dict, resultat: dict) -> str:
     non_remplis: list[str] = []
     optionnels_vides: list[str] = []
     manuels: list[str] = []
@@ -151,7 +203,9 @@ def _remplir_formulaire(dossier: Path, formulaire: str, info: dict,
             xml, erreur = _ecrire_pointilles(xml, champ, str(valeur))
         elif champ["type"] == "choix":
             options = champ.get("options") or {}
-            if valeur not in options:
+            if not isinstance(valeur, str):
+                erreur = "valeur attendue : un texte"
+            elif valeur not in options:
                 erreur = f"valeur « {valeur} » hors choix : {', '.join(options)}"
             else:
                 xml, erreur = (_noircir_case_dessinee(xml, options[valeur])
@@ -170,13 +224,8 @@ def _remplir_formulaire(dossier: Path, formulaire: str, info: dict,
     if manuels:
         resultat["manuels"][formulaire] = manuels
 
-    _controler_xml(xml, formulaire, info["fichier"])
-    cible = dossier / "candidature" / f"{formulaire}.docx"
-    _ecrire_docx(info["fichier"], xml, cible)
-    resultat["produits"].append({
-        "formulaire": formulaire,
-        "chemin": cible.relative_to(dossier).as_posix(),
-    })
+    _controler_xml(xml, formulaire)
+    return xml
 
 
 def _xml_vierge(nom_fichier: str) -> str:
@@ -185,26 +234,26 @@ def _xml_vierge(nom_fichier: str) -> str:
         return archive.read("word/document.xml").decode("utf-8")
 
 
-def _controler_xml(xml: str, formulaire: str, nom_fichier: str) -> None:
+def _controler_xml(xml: str, formulaire: str) -> None:
     try:
         ElementTree.fromstring(xml)
     except ElementTree.ParseError as erreur:
         raise espace.Erreur(
-            f"{formulaire} ({nom_fichier}) : XML invalide après remplissage "
-            f"({erreur}). Aucun fichier n'a été écrit."
+            f"Impossible de remplir {formulaire}. Vérifiez les valeurs de candidature."
         ) from erreur
 
 
-def _ecrire_docx(nom_fichier: str, xml: str, cible: Path) -> None:
+def _docx(nom_fichier: str, xml: str) -> bytes:
     """Reconstruit le docx du formulaire avec le document.xml modifié."""
     ressource = importlib.resources.files("remporte") / "cerfa" / nom_fichier
     with zipfile.ZipFile(io.BytesIO(ressource.read_bytes())) as archive:
         contenu = {nom: archive.read(nom) for nom in archive.namelist()}
     contenu["word/document.xml"] = xml.encode("utf-8")
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(cible, "w", zipfile.ZIP_DEFLATED) as sortie:
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as sortie:
         for nom, donnees in contenu.items():
             sortie.writestr(nom, donnees)
+    return tampon.getvalue()
 
 
 # ---------------------------------------------------------------------------

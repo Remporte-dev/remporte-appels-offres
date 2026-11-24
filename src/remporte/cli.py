@@ -15,8 +15,8 @@ from pathlib import Path
 
 from remporte import __version__
 from remporte import (
-    cadre, candidature, charte, espace, export, formats, inventaire, lecture, recherche,
-    travail,
+    cadre, candidature, charte, espace, export, formats, inventaire, lecture, livraison,
+    lots, recherche, travail,
 )
 from remporte.chemins import diagnostic_chemin_trop_long
 
@@ -35,13 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except espace.Erreur as erreur:
-        print(f"Erreur : {erreur}", file=sys.stderr)
-        return 1
+        return _signaler_erreur(args, str(erreur))
     except Exception as erreur:  # noqa: BLE001 — jamais de trace Python brute
         diagnostic = diagnostic_chemin_trop_long(erreur)
         message = diagnostic or f"{type(erreur).__name__}: {erreur}"
-        print(f"Erreur : {message}", file=sys.stderr)
-        return 1
+        return _signaler_erreur(args, message)
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +87,22 @@ def _construire_parser() -> argparse.ArgumentParser:
                         help="état d'avancement des étapes")
     p.set_defaults(func=_cmd_etat)
 
+    p_lots = sous.add_parser("lots", help="répartir les pièces et choisir les lots du marché")
+    sous_lots = p_lots.add_subparsers(dest="sous_commande", metavar="action", required=True)
+    pl = sous_lots.add_parser("enregistrer", parents=[communes, avec_dossier],
+                              help="valider le tri des pièces et compléter l'inventaire")
+    pl.set_defaults(func=_cmd_lots_enregistrer)
+    pl = sous_lots.add_parser("choisir", parents=[communes, avec_dossier],
+                              help="enregistrer les lots retenus et préparer leur analyse")
+    pl.add_argument("--lots", default="", metavar="LISTE",
+                    help="lots retenus, séparés par des virgules")
+    pl.add_argument("--par", default="", metavar="NOM", help="nom de la personne qui choisit")
+    pl.set_defaults(func=_cmd_lots_choisir)
+    pl = sous_lots.add_parser("rapport", parents=[communes, avec_dossier],
+                              help="présenter les lots et leurs questions à l'acheteur")
+    pl.add_argument("--ouvrir", action="store_true", help="ouvrir le rapport dans le navigateur")
+    pl.set_defaults(func=_cmd_lots_rapport)
+
     p = sous.add_parser("pieces", parents=[communes, avec_dossier],
                         help="inventaire des pièces du DCE")
     p.set_defaults(func=_cmd_pieces)
@@ -114,8 +128,14 @@ def _construire_parser() -> argparse.ArgumentParser:
                              "pages, cadres Excel/Word à compléter")
     p.set_defaults(func=_cmd_formats)
 
-    p_cand = sous.add_parser("candidature", parents=[communes],
-                             help="formulaires DC1/DC2/DC4 officiels")
+    p_liv = sous.add_parser("livraison", help="pièces à remettre")
+    sous_liv = p_liv.add_subparsers(dest="sous_commande", metavar="action", required=True)
+    pl = sous_liv.add_parser("dossier", parents=[communes, avec_dossier],
+                             help="trouver ou créer le dossier de remise")
+    pl.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
+    pl.set_defaults(func=_cmd_livraison_dossier)
+
+    p_cand = sous.add_parser("candidature", help="formulaires DC1/DC2/DC4 officiels")
     sous_cand = p_cand.add_subparsers(dest="sous_commande", metavar="action",
                                       required=True)
     pc = sous_cand.add_parser("preparer", parents=[communes, avec_dossier],
@@ -123,8 +143,11 @@ def _construire_parser() -> argparse.ArgumentParser:
                                    "remplacé s'il existe)")
     pc.set_defaults(func=_cmd_candidature_preparer)
     pc = sous_cand.add_parser("remplir", parents=[communes, avec_dossier],
-                              help="écrire candidature/DC1.docx, DC2.docx et "
-                                   "DC4.docx (si sous-traitance)")
+                              help="écrire DC1, DC2 et DC4 (si sous-traitance) "
+                                   "dans le dossier de remise")
+    pc.add_argument("--lot", metavar="ID", help="numéro du lot retenu")
+    pc.add_argument("--remplacer", action="store_true",
+                    help="confirmer le remplacement des formulaires existants")
     pc.set_defaults(func=_cmd_candidature_remplir)
 
     p = sous.add_parser("cadre", parents=[communes, avec_dossier],
@@ -194,7 +217,16 @@ def _construire_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 def _sortie_json(objet) -> None:
-    print(json.dumps(objet, ensure_ascii=False, indent=2))
+    print(json.dumps(objet, ensure_ascii=False, indent=2, allow_nan=False))
+
+
+def _signaler_erreur(args, message: str, code: int = 1) -> int:
+    commandes_json = {"init", "etat", "lots", "livraison", "candidature", "exporter"}
+    if getattr(args, "json", False) and args.commande in commandes_json:
+        _sortie_json({"ok": False, "erreur": message})
+    else:
+        print(f"Erreur : {message}", file=sys.stderr)
+    return code
 
 
 def _dossier_reponse(args) -> Path | None:
@@ -211,12 +243,12 @@ def _dossier_ou_code(args) -> tuple[Path | None, int]:
     dossier = _dossier_reponse(args)
     if dossier is None:
         cible = getattr(args, "dossier", None) or str(Path.cwd())
-        print(
-            f"Erreur : pas de dossier de réponse (.remporte/etat.json) dans {cible} "
+        code = _signaler_erreur(
+            args, f"pas de dossier de réponse (.remporte/etat.json) dans {cible} "
             "ni au-dessus. Lancez `remporte init <DCE>` d'abord.",
-            file=sys.stderr,
+            code=2,
         )
-        return None, 2
+        return None, code
     return dossier, 0
 
 
@@ -269,8 +301,7 @@ def _cmd_init(args) -> int:
         except (OSError, ValueError) as erreur:
             if diagnostic_chemin_trop_long(erreur):
                 raise
-        print(f"Erreur : source introuvable : {source}", file=sys.stderr)
-        return 1
+        raise espace.Erreur(f"source introuvable : {source}")
     racine = travail.trouver_espace()
     nom = source.stem or source.name
     if args.dossier:
@@ -279,10 +310,11 @@ def _cmd_init(args) -> int:
         dossier = racine / travail.DCES / nom
     else:
         dossier = Path.cwd() / f"{nom}-reponse"
-    print(f"Initialisation depuis {source}…")
+    if not args.json:
+        print(f"Initialisation depuis {source}…")
     donnees = espace.initialiser(source, dossier, forcer=args.forcer)
     if args.json:
-        _sortie_json(donnees)
+        _sortie_json({"ok": True, **donnees})
         return 0
     pieces = donnees["pieces"]
     lues = sum(1 for p in pieces if p["statut"] == "ok")
@@ -308,10 +340,13 @@ def _cmd_etat(args) -> int:
         return code
     etat = espace.etat(dossier)
     if args.json:
-        _sortie_json(etat)
+        _sortie_json({"ok": True, **etat})
         return 0
     print(f"Dossier : {etat['dossier']}")
     for nom in espace.ETAPES:
+        if nom == "analyse":
+            print(f"  {etat['lots']['message']}")
+            continue
         info = etat["etapes"][nom]
         detail = "" if info["marqueurs"] is None else f" ({info['marqueurs']} restants)"
         print(f"  {nom:<10} [{info['etat']}]{detail}")
@@ -320,6 +355,50 @@ def _cmd_etat(args) -> int:
         print(f"  {etat['commande']}")
     else:
         print("Toutes les étapes sont faites.")
+    return 0
+
+
+def _cmd_lots_enregistrer(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.enregistrer(dossier)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Tri enregistré pour les lots {', '.join(resultat['lots'])}.")
+        if "message" in resultat:
+            print(resultat["message"])
+    return 0
+
+
+def _cmd_lots_choisir(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.choisir(dossier, args.lots, args.par)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Lots retenus : {', '.join(resultat['choix']['retenus'])}.")
+    return 0
+
+
+def _cmd_lots_rapport(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    resultat = lots.rapport(dossier, ouvrir=args.ouvrir)
+    if args.json:
+        _sortie_json({"ok": True, **resultat})
+    else:
+        print(f"Rapport des lots : {resultat['html']}")
+        if "message" in resultat:
+            print(resultat["message"])
+        for identifiant, problemes in resultat["problemes"].items():
+            print(f"  Lot {identifiant}, analyse en cours")
+            for probleme in problemes:
+                print(f"    - {probleme}")
     return 0
 
 
@@ -336,11 +415,18 @@ def _cmd_pieces(args) -> int:
         )
         return 1
     pieces = donnees["pieces"]
+    try:
+        tri = lots.lire(dossier)
+    except espace.Erreur:
+        tri = None
+    libelles = lots.colonne_lot(tri)
     if args.json:
-        _sortie_json({"pieces": pieces})
+        _sortie_json({"pieces": [
+            {**p, "lot": libelles.get(f"dce/{p['chemin']}")} for p in pieces
+        ]})
         return 0
     lignes = [
-        [p["type"], p["lot"] or "—", p["statut"],
+        [p["type"], libelles.get(f"dce/{p['chemin']}", "—"), p["statut"],
          str(p["pages"]) if p["pages"] is not None else "—",
          _nombre(p["texte"]) if p["texte"] else "0", f"dce/{p['chemin']}"]
         for p in pieces
@@ -610,6 +696,18 @@ def _cmd_formats(args) -> int:
     return 0
 
 
+def _cmd_livraison_dossier(args) -> int:
+    dossier, code = _dossier_ou_code(args)
+    if dossier is None:
+        return code
+    chemin = livraison.dossier_lot(dossier, args.lot)
+    if args.json:
+        _sortie_json({"ok": True, "chemin": str(chemin)})
+    else:
+        print(chemin)
+    return 0
+
+
 def _cmd_candidature_preparer(args) -> int:
     dossier, code = _dossier_ou_code(args)
     if dossier is None:
@@ -628,15 +726,17 @@ def _cmd_candidature_remplir(args) -> int:
     dossier, code = _dossier_ou_code(args)
     if dossier is None:
         return code
-    resultat = candidature.remplir(dossier)
+    resultat = candidature.remplir(dossier, args.lot, remplacer=args.remplacer)
     if args.json:
-        _sortie_json(resultat)
+        _sortie_json({"ok": True, **resultat})
         return 0
     for produit in resultat["produits"]:
         print(f"{produit['formulaire']} → {dossier / produit['chemin']}")
     for non_produit in resultat["non_produits"]:
         print(f"{non_produit['formulaire']} → non produit "
               f"({non_produit['motif']})")
+    if "message" in resultat:
+        print(resultat["message"])
     _afficher_champs(
         "Champs non remplis (complétez candidature/valeurs.json puis "
         "relancez) :", resultat["non_remplis"])
@@ -716,6 +816,7 @@ GUIDES_ANNEXES = {
     "soutenance": "support préparé sur les fichiers de l'entreprise",
     "excel": "répondre dans un fichier Excel ou Word imposé",
     "candidature": "DC1, DC2, DC4",
+    "style": "écrire comme l'entreprise parle de son métier",
     "modeles": "puissance de modèle et sous-agents par tâche",
     "cle-api": "ce que donne une clé API Remporte et comment la créer",
 }
@@ -799,21 +900,22 @@ def _cmd_exporter(args) -> int:
         return code
     formats = {f.strip().lower() for f in args.formats.split(",") if f.strip()}
     if "docx" in formats:
-        print("Erreur : le mémoire Word se produit avec votre agent, à partir de "
-              "sections/ (remporte guide export).", file=sys.stderr)
-        return 1
+        raise espace.Erreur("Le mémoire Word se produit avec votre agent, à partir de "
+                            "sections/ (remporte guide export).")
     inconnus = formats - {"html", "analyse", "feuille", "matrice"}
     if inconnus:
-        print(f"Erreur : formats inconnus : {', '.join(sorted(inconnus))} "
-              "(choix : html, analyse, feuille, matrice)", file=sys.stderr)
-        return 1
+        raise espace.Erreur(f"Formats inconnus : {', '.join(sorted(inconnus))} "
+                            "(choix : html, analyse, feuille, matrice)")
     if not formats:
         formats = {"html", "analyse", "feuille", "matrice"}
     resultat = export.exporter(dossier, formats)
+    message = resultat.pop("message", None)
     if args.json:
-        _sortie_json({cle: str(valeur) if valeur else None
-                      for cle, valeur in resultat.items()})
+        chemins = {cle: str(valeur) if valeur else None for cle, valeur in resultat.items()}
+        _sortie_json({"ok": True, **chemins, **({"message": message} if message else {})})
         return 0
+    if message:
+        print(message)
     for format_, chemin in resultat.items():
         print(f"{format_} : {chemin}" if chemin else f"{format_} : non produit")
     return 0

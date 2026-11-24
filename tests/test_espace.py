@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 from conftest import ecrire_pdf, fabriquer_docx, fabriquer_xlsx, fabriquer_zip
 
 from remporte import espace, recherche
+from remporte.cli import main
 from remporte.lecture import decompresser
 
 
@@ -30,7 +32,7 @@ def test_initialiser_arborescence(tmp_path: Path, source_dce: Path):
     dossier = tmp_path / "reponse"
     donnees = espace.initialiser(source_dce, dossier)
     for chemin in ("dce", "sections", "export", ".remporte/texte",
-                   "AGENTS.md", "CLAUDE.md", "GEMINI.md", "02-analyse.md", "03-go-no-go.md",
+                   "AGENTS.md", "CLAUDE.md", "GEMINI.md", "03-go-no-go.md",
                    "04-plan.md", "05-relecture.md", "01-pieces.md",
                    ".remporte/etat.json", ".remporte/index.sqlite"):
         assert (dossier / chemin).exists(), chemin
@@ -58,7 +60,7 @@ def test_initialiser_refuse_dossier_deja_la(tmp_path: Path, source_dce: Path):
 def test_initialiser_forcer_garde_fichiers_remplis(tmp_path: Path, source_dce: Path):
     dossier = tmp_path / "reponse"
     espace.initialiser(source_dce, dossier)
-    rempli = dossier / "02-analyse.md"
+    rempli = dossier / "03-go-no-go.md"
     rempli.write_text(
         rempli.read_text(encoding="utf-8").replace("<!-- à remplir -->", "Fait."),
         encoding="utf-8",
@@ -66,7 +68,44 @@ def test_initialiser_forcer_garde_fichiers_remplis(tmp_path: Path, source_dce: P
     espace.initialiser(source_dce, dossier, forcer=True)
     assert "Fait." in rempli.read_text(encoding="utf-8")
     # un gabarit non rempli est réinitialisé : il contient encore son marqueur
-    assert "à remplir" in (dossier / "03-go-no-go.md").read_text(encoding="utf-8")
+    assert "à remplir" in (dossier / "04-plan.md").read_text(encoding="utf-8")
+
+
+def test_initialiser_forcer_conserve_une_etape_entamee_avec_marqueur(
+        tmp_path: Path, source_dce: Path):
+    """`init --forcer` ne réécrit un fichier d'étape que s'il est identique au
+    gabarit d'origine : un fichier entamé (paragraphe rédigé) qui garde un
+    marqueur n'est pas réinitialisé — sinon la réindexation efface une
+    rédaction en cours."""
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_dce, dossier)
+
+    plan = dossier / "04-plan.md"
+    plan_entame = (
+        "# Plan du mémoire\n\n"
+        "## Sections\n\n"
+        "- [ ] 01 — Moyens\n"
+        "- [ ] 02 — Prix\n\n"
+        "## À rédiger\n\n"
+        "Premier paragraphe rédigé par l'équipe, marqueur gardé pour la suite.\n"
+        "<!-- à remplir -->\n"
+    )
+    plan.write_text(plan_entame, encoding="utf-8")
+    decision = dossier / "03-go-no-go.md"
+    decision_entame = decision.read_text(encoding="utf-8").replace(
+        "## Décision\n\n<!-- à remplir -->",
+        "## Décision\n\nGo. Le besoin correspond au métier (fictif).\n"
+        "<!-- à remplir -->",
+    )
+    decision.write_text(decision_entame, encoding="utf-8")
+    assert "<!-- à remplir -->" in plan_entame
+    assert "<!-- à remplir -->" in decision_entame
+
+    espace.initialiser(source_dce, dossier, forcer=True)
+
+    # l'entame est conservée octet pour octet, marqueur compris
+    assert plan.read_text(encoding="utf-8") == plan_entame
+    assert decision.read_text(encoding="utf-8") == decision_entame
 
 
 def test_01_pieces_contenu(tmp_path: Path, source_dce: Path):
@@ -87,8 +126,6 @@ def test_etat_initial(tmp_path: Path, source_dce: Path):
     espace.initialiser(source_dce, dossier)
     etat = espace.etat(dossier)
     assert etat["etapes"]["pieces"]["etat"] == "faite"
-    assert etat["etapes"]["analyse"]["etat"] == "a_faire"
-    assert etat["etapes"]["analyse"]["marqueurs"] > 0
     assert etat["etapes"]["export"]["etat"] == "a_faire"
     assert etat["prochaine"] == "analyse"
     assert etat["commande"] == "remporte guide analyse"
@@ -257,3 +294,95 @@ def test_initialiser_forcer_ne_retire_rien_d_un_dossier_sans_provenance(tmp_path
     assert (dossier / "dce" / "1-RC.docx").exists()
     assert donnees["retirees"] == []
     assert sorted(donnees["importees"]) == ["2-CCTP.docx"]
+
+
+# ---------------------------------------------------------------------------
+# Colonne « Lot » de l'inventaire : une seule source, le tri enregistré
+# ---------------------------------------------------------------------------
+
+def _tri_dce_exemple() -> dict:
+    """Tri du DCE d'essai (source_dce) : RC et notes dans le lot 02, BPU
+    commun, CCTP scanné illisible. Le choix reste vide."""
+    return {
+        "schema_version": 1,
+        "allotissement": "lots",
+        "lots": [
+            {"id": "02", "intitule": "Génie électrique et courants forts",
+             "pieces": ["dce/1-RC.docx", "dce/notes.txt"], "parties_communes": [],
+             "recommandation": {"avis": "repondre",
+                                "raison": "Dans le métier de l'entreprise (fictif)."}},
+        ],
+        "pieces_communes": ["dce/2-BPU.xlsx"],
+        "pieces_illisibles": ["dce/3-CCTP-scan.pdf"],
+        "types_pieces": {"dce/1-RC.docx": "RC", "dce/2-BPU.xlsx": "BPU",
+                         "dce/notes.txt": "autre"},
+        "choix": None,
+    }
+
+
+def _enregistrer_tri(dossier: Path) -> None:
+    chemin_tri = dossier / "memoire" / "lots.json"
+    chemin_tri.parent.mkdir(parents=True, exist_ok=True)
+    chemin_tri.write_text(
+        json.dumps(_tri_dce_exemple(), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8")
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
+
+
+def test_pieces_affiche_le_lot_du_tri_enregistre(
+        tmp_path: Path, source_dce: Path, capsys):
+    """Après `lots enregistrer`, `remporte pieces` montre la même répartition
+    que 01-pieces.md : id du lot, « commun », ou un tiret."""
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_dce, dossier)
+    _enregistrer_tri(dossier)
+
+    assert main(["pieces", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr().out
+    colonnes = {}
+    for ligne in sortie.splitlines():
+        cellules = [c.strip() for c in re.split(r"  +", ligne) if c.strip()]
+        if len(cellules) < 6:  # hors tableau : notes sous l'inventaire
+            continue
+        colonnes[cellules[-1]] = cellules[1]
+    assert colonnes["dce/1-RC.docx"] == "02"
+    assert colonnes["dce/notes.txt"] == "02"
+    assert colonnes["dce/2-BPU.xlsx"] == "commun"
+    assert colonnes["dce/3-CCTP-scan.pdf"] == "—"
+
+
+def test_init_forcer_conserve_la_colonne_lot_d_un_tri_enregistre(
+        tmp_path: Path, source_dce: Path, capsys):
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_dce, dossier)
+    _enregistrer_tri(dossier)
+    assert "| 02 | `dce/1-RC.docx`" in \
+        (dossier / "01-pieces.md").read_text(encoding="utf-8")
+
+    assert main(["init", str(source_dce), "--dossier", str(dossier),
+                 "--forcer"]) == 0
+    capsys.readouterr()
+    inventaire = (dossier / "01-pieces.md").read_text(encoding="utf-8")
+    assert "| 02 | `dce/1-RC.docx`" in inventaire
+    assert "| commun | `dce/2-BPU.xlsx`" in inventaire
+
+
+def test_init_forcer_efface_la_colonne_lot_si_le_tri_n_est_plus_valide(
+        tmp_path: Path, source_dce: Path, capsys):
+    dossier = tmp_path / "reponse"
+    espace.initialiser(source_dce, dossier)
+    _enregistrer_tri(dossier)
+
+    # sans le relevé du choix, le tri n'est plus enregistré : rien ne prouve
+    # que la répartition a été validée pour cet inventaire
+    (dossier / ".remporte" / "lots.json").unlink()
+    assert main(["init", str(source_dce), "--dossier", str(dossier),
+                 "--forcer"]) == 0
+    capsys.readouterr()
+    inventaire = (dossier / "01-pieces.md").read_text(encoding="utf-8")
+    assert "| — | `dce/1-RC.docx`" in inventaire
+    assert "| 02 |" not in inventaire
+
+    assert main(["etat", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr().out
+    assert "répartition" in sortie, sortie

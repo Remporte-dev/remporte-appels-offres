@@ -3,10 +3,14 @@
 Chaque valeur est relue à l'endroit exact du XML (paragraphe visé, case
 cochée) : une valeur écrite au mauvais endroit est pire qu'un champ vide.
 Toutes les données sont manifestement fictives.
+
+Les formulaires remplis vont dans le dossier de remise (`reponse/` pour un
+marché non alloti) ; `candidature/` ne porte plus que `valeurs.json`.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import zipfile
@@ -17,6 +21,7 @@ import pytest
 from conftest import fabriquer_docx
 
 from remporte import espace, candidature
+from remporte.cli import main
 
 
 @pytest.fixture()
@@ -114,6 +119,59 @@ def remplir_dc4(dossier: Path) -> None:
     ecrire_valeurs(dossier, valeurs)
 
 
+def empreintes_dossier(racine: Path) -> dict[str, str]:
+    """Empreinte de chaque fichier : une commande refusée ne doit rien
+    modifier, ni rien ajouter."""
+    empreintes: dict[str, str] = {}
+    for chemin in sorted(racine.rglob("*")):
+        if chemin.is_file():
+            empreintes[chemin.relative_to(racine).as_posix()] = \
+                hashlib.sha256(chemin.read_bytes()).hexdigest()
+    return empreintes
+
+
+def dossier_alloti_avec_choix(tmp_path: Path, capsys) -> Path:
+    """Dossier alloti, lots 02 et 05 retenus par `lots choisir`, candidature
+    préparée : le RC est réparti dans le lot 02, le lot 05 n'a que son
+    intitulé. Les commandes d'état jouent comme pour un vrai dossier."""
+    source = tmp_path / "DCE"
+    source.mkdir()
+    fabriquer_docx(source / "1-RC.docx")
+    dossier = tmp_path / "reponse"
+    assert main(["init", str(source), "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    tri = {
+        "schema_version": 1,
+        "allotissement": "lots",
+        "lots": [
+            {"id": "02", "intitule": "Électricité courants forts",
+             "pieces": ["dce/1-RC.docx"], "parties_communes": [],
+             "recommandation": {"avis": "repondre",
+                                "raison": "Cœur du métier (fictif)."}},
+            {"id": "05", "intitule": "Ventilation mécanique",
+             "pieces": [], "parties_communes": [],
+             "recommandation": {"avis": "a_discuter",
+                                "raison": "Sous-traitance probable (fictif)."}},
+        ],
+        "pieces_communes": [],
+        "pieces_illisibles": [],
+        "types_pieces": {"dce/1-RC.docx": "RC"},
+        "choix": None,
+    }
+    chemin_tri = dossier / "memoire" / "lots.json"
+    chemin_tri.parent.mkdir(parents=True, exist_ok=True)
+    chemin_tri.write_text(
+        json.dumps(tri, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    assert main(["lots", "enregistrer", "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert main(["lots", "choisir", "--lots", "02,05", "--par", "Camille Exemple",
+                 "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    assert main(["candidature", "preparer", "--dossier", str(dossier)]) == 0
+    capsys.readouterr()
+    return dossier
+
+
 # ---------------------------------------------------------------------------
 # preparer
 # ---------------------------------------------------------------------------
@@ -158,6 +216,26 @@ def test_remplir_sans_valeurs_echoue(tmp_path: Path):
         candidature.remplir(dossier)
 
 
+def test_un_ancien_dc4_est_signale_et_conserve_sans_bloquer(dossier: Path, capsys):
+    """Un DC4 laissé par un essai précédent, alors qu'aucune sous-traitance
+    n'est déclarée, n'empêche plus d'écrire DC1 et DC2 : il est signalé dans
+    la sortie et jamais supprimé — le dossier part chez l'acheteur."""
+    remplir_dc1(dossier)  # DC1 et DC2 remplis, pas de sous-traitance
+    remise = dossier / "reponse"
+    remise.mkdir(exist_ok=True)
+    fabriquer_docx(remise / "DC4.docx")  # un ancien DC4 déjà présent
+
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) == 0
+    sortie = capsys.readouterr()
+    message = sortie.out + sortie.err
+    assert "DC4.docx" in message, message
+    assert "sous-traitance" in message, message
+    # DC1 et DC2 sont écrits à côté, et l'ancien DC4 n'a pas été touché
+    assert (remise / "DC1.docx").is_file()
+    assert (remise / "DC2.docx").is_file()
+    assert (remise / "DC4.docx").is_file()
+
+
 def test_remplir_dc1_ecrit_aux_bons_endroits(dossier: Path):
     remplir_dc1(dossier)
     resultat = candidature.remplir(dossier)
@@ -165,7 +243,7 @@ def test_remplir_dc1_ecrit_aux_bons_endroits(dossier: Path):
     assert resultat["non_produits"][0]["formulaire"] == "DC4"
     assert resultat["anomalies"] == {}
 
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert "Mairie d'Exemple" in paragraphes[19]
     assert "[réf. : 2026-001]" in paragraphes[19]
     assert "Prestations d'essai (fictif)" in paragraphes[29]
@@ -187,7 +265,7 @@ def test_remplir_dc1_laisse_vides_les_champs_sans_valeur(dossier: Path):
     assert "denomination" not in resultat["non_remplis"]["DC1"]
     assert "acheteur" in resultat["non_remplis"]["DC1"]
     assert "lot_numero" in resultat["optionnels_vides"]["DC1"]
-    paragraphes, _ = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    paragraphes, _ = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert paragraphes[19] == "A - Identification de l’acheteur"
     assert paragraphes[64].endswith("Entreprise Exemple SAS")
 
@@ -209,7 +287,7 @@ def test_remplir_dc2_ecrit_aux_bons_endroits(dossier: Path):
     ecrire_valeurs(dossier, valeurs)
     candidature.remplir(dossier)
 
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC2.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC2.docx")
     # l'identité tombe bien sur la ligne du champ (2ᵉ occurrence du libellé),
     # pas sur l'encadré d'intro de la rubrique C1 (paragraphe 40)
     assert "Entreprise Exemple SAS" in paragraphes[42]
@@ -229,22 +307,26 @@ def test_remplir_dc2_ecrit_aux_bons_endroits(dossier: Path):
 def test_remplir_dc4_produit_seulement_avec_sous_traitance(dossier: Path):
     remplir_dc4(dossier)
     candidature.remplir(dossier)
-    assert (dossier / "candidature" / "DC4.docx").exists()
+    dc4 = dossier / "reponse" / "DC4.docx"
+    assert dc4.exists()
+    octets_avant = dc4.read_bytes()
 
     valeurs = charger_valeurs(dossier)
     valeurs["DC4"]["champs"]["sous_traitance"]["valeur"] = False
     ecrire_valeurs(dossier, valeurs)
-    (dossier / "candidature" / "DC4.docx").unlink()
-    resultat = candidature.remplir(dossier)
-    assert not (dossier / "candidature" / "DC4.docx").exists()
+    resultat = candidature.remplir(dossier, remplacer=True)
     assert resultat["non_produits"][0]["formulaire"] == "DC4"
+    # le DC4 existant n'est pas touché, ni réécrit ni vidé : mêmes octets
+    # avant et après (une substitution qui le viderait doit faire échouer
+    # ce test, pas seulement la vérification de présence)
+    assert dc4.read_bytes() == octets_avant
 
 
 def test_remplir_dc4_distingue_titulaire_et_sous_traitant(dossier: Path):
     remplir_dc4(dossier)
     resultat = candidature.remplir(dossier)
     assert resultat["anomalies"] == {}
-    paragraphes, xml = paragraphs_xml(dossier / "candidature" / "DC4.docx")
+    paragraphes, xml = paragraphs_xml(dossier / "reponse" / "DC4.docx")
     # D (titulaire) et E (sous-traitant) portent les mêmes libellés : la
     # 1ʳᵉ occurrence va au titulaire, la 2ᵉ au sous-traitant
     assert paragraphes[51].endswith("Entreprise Exemple SAS")
@@ -278,7 +360,7 @@ def test_choix_hors_liste_est_anomalie_et_ne_coche_rien(dossier: Path):
     ecrire_valeurs(dossier, valeurs)
     resultat = candidature.remplir(dossier)
     assert "presentation" in resultat["anomalies"]["DC1"]
-    _, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    _, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert cases_cochees(xml) == []
 
 
@@ -287,7 +369,7 @@ def test_docx_produit_est_un_zip_et_un_xml_valides(dossier: Path):
     remplir_dc4(dossier)
     candidature.remplir(dossier)
     for nom in ("DC1.docx", "DC2.docx", "DC4.docx"):
-        chemin = dossier / "candidature" / nom
+        chemin = dossier / "reponse" / nom
         with zipfile.ZipFile(chemin) as archive:
             assert archive.testzip() is None
             ElementTree.fromstring(archive.read("word/document.xml"))
@@ -301,9 +383,83 @@ def test_caracteres_xml_echappes(dossier: Path):
     valeurs["DC1"]["champs"]["denomination"]["valeur"] = "A<R> & B"
     ecrire_valeurs(dossier, valeurs)
     candidature.remplir(dossier)
-    _, xml = paragraphs_xml(dossier / "candidature" / "DC1.docx")
+    _, xml = paragraphs_xml(dossier / "reponse" / "DC1.docx")
     assert "A&lt;R&gt; &amp; B" in xml
     from docx import Document
 
-    textes = [p.text for p in Document(str(dossier / "candidature" / "DC1.docx")).paragraphs]
+    textes = [p.text for p in Document(str(dossier / "reponse" / "DC1.docx")).paragraphs]
     assert any(t.endswith("A<R> & B") for t in textes)
+
+
+# ---------------------------------------------------------------------------
+# DC1 et lot : concordance entre le champ lot du DC1 et le dossier de remise
+# ---------------------------------------------------------------------------
+
+def test_le_dc1_qui_vise_un_autre_lot_est_signale_dans_les_anomalies(
+        tmp_path: Path, capsys):
+    """Le DC1 désigne le lot 02 mais il est rangé dans le dossier du lot 05 :
+    la commande écrit quand même et le signale dans `anomalies`, sans
+    remplacer la candidature commune à plusieurs lots."""
+    dossier = dossier_alloti_avec_choix(tmp_path, capsys)
+    remplir_dc1(dossier)
+    valeurs = charger_valeurs(dossier)
+    valeurs["DC1"]["champs"]["lot_numero"]["valeur"] = \
+        "02 - Électricité courants forts"  # ne contient pas « 05 »
+    ecrire_valeurs(dossier, valeurs)
+
+    assert main(["candidature", "remplir", "--lot", "05",
+                 "--dossier", str(dossier), "--json"]) == 0
+    sortie = json.loads(capsys.readouterr().out)
+    assert sortie["ok"] is True
+    remise = dossier / "reponse" / "Lot 05 - Ventilation mécanique"
+    assert (remise / "DC1.docx").is_file()  # écrit malgré le signalement
+    texte = json.dumps(sortie, ensure_ascii=False)
+    assert "anomalies" in sortie and sortie["anomalies"], texte
+    assert "Le DC1 désigne" in texte, texte
+    assert "02 - Électricité courants forts" in texte, texte
+    assert "dossier du lot 05" in texte, texte
+
+
+def test_le_dc1_qui_vise_le_bon_lot_ne_declenche_pas_d_anomalie(
+        tmp_path: Path, capsys):
+    """Garde : le signal n'est pas systématique — un DC1 qui désigne le lot
+    de son dossier reste sans anomalie."""
+    dossier = dossier_alloti_avec_choix(tmp_path, capsys)
+    remplir_dc1(dossier)
+    valeurs = charger_valeurs(dossier)
+    valeurs["DC1"]["champs"]["lot_numero"]["valeur"] = \
+        "05 - Ventilation mécanique"  # contient « 05 »
+    ecrire_valeurs(dossier, valeurs)
+
+    assert main(["candidature", "remplir", "--lot", "05",
+                 "--dossier", str(dossier), "--json"]) == 0
+    sortie = json.loads(capsys.readouterr().out)
+    assert sortie["anomalies"] == {}, sortie["anomalies"]
+    assert (dossier / "reponse" / "Lot 05 - Ventilation mécanique"
+            / "DC1.docx").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Valeurs de candidature : type refusé avant toute écriture
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("formulaire", ["DC1", "DC2"])
+def test_une_valeur_d_un_type_inattendu_est_refusee_avant_toute_ecriture(
+        dossier: Path, capsys, formulaire):
+    """Une valeur qui n'est ni texte, ni nombre, ni booléen, ni null (ici un
+    objet JSON) est refusée : le message nomme le formulaire et le libellé du
+    champ, et aucun fichier n'est écrit."""
+    valeurs = charger_valeurs(dossier)
+    valeurs[formulaire]["champs"]["denomination"]["valeur"] = {
+        "raison_sociale": "Atelier Exemple"}
+    ecrire_valeurs(dossier, valeurs)
+    libelle = valeurs[formulaire]["champs"]["denomination"]["label"]
+    avant = empreintes_dossier(dossier)
+
+    assert main(["candidature", "remplir", "--dossier", str(dossier)]) != 0
+    message = "".join(capsys.readouterr())
+    assert f"{formulaire}, " in message, message
+    assert libelle in message, message
+    assert "valeur attendue : un texte" in message, message
+    assert empreintes_dossier(dossier) == avant  # refusé avant toute écriture
+    assert not (dossier / "reponse").exists()

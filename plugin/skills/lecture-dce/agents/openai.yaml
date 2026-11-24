@@ -1,6 +1,6 @@
 interface:
   display_name: "Lecture du DCE"
-  short_description: "Indexer et analyser les pièces d'un appel d'offres"
-  default_prompt: "Lis les pièces du DCE et produis l'index et l'analyse sourcée selon la procédure Remporte."
+  short_description: "Trier les lots et analyser ceux retenus"
+  default_prompt: "Lis les pièces du DCE selon la procédure Remporte : index et tri des lots, choix des lots par l'utilisateur, puis analyse de chaque lot retenu."
 policy:
   allow_implicit_invocation: false

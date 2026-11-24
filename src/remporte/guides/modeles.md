@@ -19,10 +19,12 @@ sur le go/no-go ou la rédaction donne une réponse faible.
 
 ## Si ton agent sait lancer des sous-agents
 
-Avec le plugin Claude Code, trois sous-agents sont fournis :
+Avec le plugin Claude Code, quatre sous-agents sont fournis :
 `remporte:lecteur-dce` (index et analyse, modèle intermédiaire),
-`remporte:redacteur-section` (une section, modèle intermédiaire) et
-`remporte:relecteur` (relecture, ton modèle principal). Pour un autre agent,
+`remporte:redacteur-section` (une section, modèle intermédiaire),
+`remporte:relecteur` (relecture du mémoire ou d'une étape, ton modèle
+principal) et `remporte:controleur-coherence` (recoupement des pièces avant
+l'export, ton modèle principal). Pour un autre agent,
 reprends le même découpage :
 
 - **Exploration** : confie à un sous-agent léger la lecture d'une pièce longue
@@ -32,7 +34,8 @@ reprends le même découpage :
 - **Rédaction en parallèle** : une section par sous-agent, chacun avec la
   ligne du plan, les passages du DCE et de la base qui la concernent.
 - **Relecture** : un sous-agent qui n'a rien rédigé, à qui tu donnes la grille
-  de notation et le mémoire exporté.
+  de notation et le mémoire exporté. Il écrit son rapport ; c'est toi qui
+  appliques les corrections.
 
 Sans sous-agents, garde le même ordre et lis les gros documents par
 recherche ciblée (`remporte chercher`) plutôt qu'en entier.

@@ -1,4 +1,4 @@
-"""Classification déterministe des pièces du DCE : type, lot, indice.
+"""Classification déterministe des pièces du DCE : type et indice.
 
 D'abord d'après le nom du fichier, puis, à défaut, d'après les 800 premiers
 caractères du texte converti. Aucun appel réseau, aucun modèle : des motifs.
@@ -74,7 +74,7 @@ _PATTERNS_NOM = [
 ]
 
 # Classification par contenu : sur texte normalisé (sans accents, apostrophes
-# unifiées, blancs compactés). Lexique repris de classify.py de remporte-pi.
+# unifiées, blancs compactés).
 _PATTERNS_CONTENU = [
     ("RC", re.compile(
         r"reglement(?: particulier)? de la? consultation|modalites de remise")),
@@ -104,17 +104,15 @@ class Classement:
     """Résultat de classification d'une pièce."""
 
     type: str            # un des TYPES
-    lot: str | None      # « 2 » si « lot 2 », « LOT02 », « L2_ » dans le nom
     indice: str          # "nom" | "contenu" | "aucun"
 
 
 def classer(chemin: Path, texte: str) -> Classement:
     """Type de la pièce, d'après le nom puis, à défaut, le début du texte."""
     chemin = Path(chemin)
-    lot = _lot_du_nom(chemin.name)
     for type_, motif in _PATTERNS_NOM:
         if motif.search(chemin.name):
-            return Classement(type_, lot, "nom")
+            return Classement(type_, "nom")
     entete = _normaliser(texte[:_LONGUEUR_ENTETE])
     premier: tuple[str, re.Match] | None = None
     for type_, motif in _PATTERNS_CONTENU:
@@ -122,8 +120,8 @@ def classer(chemin: Path, texte: str) -> Classement:
         if trouve and (premier is None or trouve.start() < premier[1].start()):
             premier = (type_, trouve)
     if premier is not None:
-        return Classement(premier[0], lot, "contenu")
-    return Classement("AUTRE", lot, "aucun")
+        return Classement(premier[0], "contenu")
+    return Classement("AUTRE", "aucun")
 
 
 def pieces_attendues_absentes(types: set[str]) -> list[str]:
@@ -150,11 +148,3 @@ def _normaliser(texte: str) -> str:
     return " ".join(
         sans_accents.lower().replace("’", "'").replace("'", "'").split()
     )
-
-
-_LOT_RE = re.compile(r"(?:\blots?[\s_.-]*0*|\bl0*)([1-9]\d*)", re.I)
-
-
-def _lot_du_nom(nom: str) -> str | None:
-    trouve = _LOT_RE.search(nom)
-    return str(int(trouve.group(1))) if trouve else None
