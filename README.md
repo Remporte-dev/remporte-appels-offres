@@ -54,7 +54,7 @@ que personne ne le remarque : ce contrôle-là ne demande aucun modèle.
 
 ## Installation
 
-La [release 0.8.0](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v0.8.0) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v0.8.0/) restent aussi disponibles.
+La [release 1.0.1](https://github.com/Remporte-dev/remporte-appels-offres/releases/tag/v1.0.1) contient les archives par plateforme et le guide d’installation. Le CLI est publié sur PyPI ; les [téléchargements directs](releases/v1.0.1/) restent aussi disponibles.
 
 ```bash
 uv tool install --upgrade remporte

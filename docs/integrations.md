@@ -1,6 +1,6 @@
 # Installer Remporte dans son agent
 
-La version 0.8.0 utilise la même méthode pour toutes les plateformes. Les archives sont produites depuis `plugin/skills/` et `plugin/references/`. Les différences portent sur le format d'installation et l'accès aux fichiers.
+La version 1.0.1 utilise la même méthode pour toutes les plateformes. Les archives sont produites depuis `plugin/skills/` et `plugin/references/`. Les différences portent sur le format d'installation et l'accès aux fichiers.
 
 Sur toutes les plateformes, l'utilisateur ne tape aucune commande Remporte : il donne le
 chemin de son DCE à l'agent et lui demande, en français, « Aide-moi à répondre à cet appel
@@ -47,7 +47,7 @@ cd ~/Remporte
 
 Ajoutez vos documents d’entreprise dans `ressources/` et complétez `ressources/fiche-entreprise.md`, créée par la commande précédente. Depuis `~/Remporte`, lancez `remporte base indexer`. Rouvrez ensuite votre agent dans cet espace. Les nouveaux DCE y sont rangés dans `DCEs/` et retrouvent la base de l’entreprise.
 
-Téléchargez l’archive de votre plateforme dans [la release Remporte](https://github.com/Remporte-dev/remporte-appels-offres/releases/latest). Pour la version 0.8.0 : `remporte-gemini-0.8.0.zip`, `remporte-hermes-0.8.0.zip`, `remporte-openclaw-0.8.0.zip` ou `remporte-pi-0.8.0.zip`. Décompressez-la dans un nouveau dossier avant de suivre les instructions ci-dessous.
+Téléchargez l’archive de votre plateforme dans [la release Remporte](https://github.com/Remporte-dev/remporte-appels-offres/releases/latest). Pour la version 1.0.1 : `remporte-gemini-1.0.1.zip`, `remporte-hermes-1.0.1.zip`, `remporte-openclaw-1.0.1.zip` ou `remporte-pi-1.0.1.zip`. Décompressez-la dans un nouveau dossier avant de suivre les instructions ci-dessous.
 
 ## Claude Code et Codex
 
@@ -156,8 +156,8 @@ uv run python scripts/package_skills.py --platform openclaw --output dist/rempor
 uv run python scripts/package_skills.py --platform pi --output dist/remporte-pi.zip
 uv run python scripts/package_skills.py --platform portable --output dist/remporte-portable.zip
 uv build --wheel --out-dir dist/cli
-uv run python scripts/package_cloud.py --platform muse --wheel dist/cli/remporte-0.8.0-py3-none-any.whl --output dist/remporte-muse.zip
-uv run python scripts/package_cloud.py --platform chatgpt-work --wheel dist/cli/remporte-0.8.0-py3-none-any.whl --output dist/remporte-chatgpt-work.zip
+uv run python scripts/package_cloud.py --platform muse --wheel dist/cli/remporte-1.0.1-py3-none-any.whl --output dist/remporte-muse.zip
+uv run python scripts/package_cloud.py --platform chatgpt-work --wheel dist/cli/remporte-1.0.1-py3-none-any.whl --output dist/remporte-chatgpt-work.zip
 ```
 
 Les archives Gemini, Hermes, OpenClaw, Pi et portable contiennent les douze compétences, chacune avec ses procédures dans `references/`. L'archive OpenAI ne contient pas les sous-agents, qui sont propres à Claude Code. Les scripts refusent d'écraser une archive existante. Les paquets cloud refusent un CLI d'une autre version. Les archives n'installent rien dans un compte ni dans les dossiers de l'utilisateur lors de leur construction.
